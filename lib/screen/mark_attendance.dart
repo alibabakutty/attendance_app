@@ -16,64 +16,91 @@ class _MarkAttendanceState extends State<MarkAttendance> {
   DateTime? _lunchTimeEnd;
   DateTime? _officeTimeOut;
   bool _isSubmitted = false;
-  Position? _currentPosition;
   String _locationError = '';
 
-  Future<void> _getCurrentLocation() async {
+  final Map<String, Position?> _locationMap = {
+    'officeIn': null,
+    'lunchStart': null,
+    'lunchEnd': null,
+    'officeOut': null,
+  };
+
+  Future<Position?> _getCurrentLocation() async {
     try {
-      // Check if location permission is granted
-      final status = await Permission.location.request();
-      if (!status.isGranted) {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        await Geolocator.openLocationSettings();
         setState(() {
-          _locationError = 'Location permission denied';
+          _locationError = 'Location services are disabled.';
         });
-        return;
+        return null;
       }
 
-      // Get current position
+      PermissionStatus status = await Permission.location.status;
+
+      if (status.isDenied ||
+          status.isRestricted ||
+          status.isPermanentlyDenied) {
+        final newStatus = await Permission.location.request();
+
+        if (newStatus.isPermanentlyDenied) {
+          setState(() {
+            _locationError =
+                'Location permission permanently denied. Please enable it from settings.';
+          });
+          openAppSettings();
+          return null;
+        }
+
+        if (!newStatus.isGranted) {
+          setState(() {
+            _locationError = 'Location permission denied.';
+          });
+          return null;
+        }
+      }
+
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
       setState(() {
-        _currentPosition = position;
         _locationError = '';
       });
+
+      return position;
     } catch (e) {
       setState(() {
-        _locationError = 'Failed to get location: ${e.toString()}';
+        _locationError = 'Error getting location: $e';
       });
+      return null;
     }
   }
 
   String _recordTime(DateTime? time) {
-    if (time != null) {
-      return DateFormat('hh:mm a').format(time);
-    }
-    return 'Pending';
+    return time != null ? DateFormat('hh:mm a').format(time) : 'Pending';
   }
 
-  String _getLocationText() {
-    if (_currentPosition != null) {
-      return 'Lat: ${_currentPosition!.latitude.toStringAsFixed(4)}, '
-          'Lng: ${_currentPosition!.longitude.toStringAsFixed(4)}';
-    }
-    return 'Location not recorded';
+  String _formatLocation(Position pos) {
+    return 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}';
   }
 
   Future<void> _handleAction(String actionType) async {
-    await _getCurrentLocation(); // Get location first
+    final position = await _getCurrentLocation();
 
-    if (_currentPosition == null && _locationError.isEmpty) {
-      // If location wasn't obtained but no error was set (user might have denied)
-      setState(() {
-        _locationError = 'Location is required for attendance';
-      });
+    if (position == null) {
+      if (_locationError.isEmpty) {
+        setState(() {
+          _locationError = 'Location is required for attendance';
+        });
+      }
       return;
     }
 
     final now = DateTime.now();
     setState(() {
+      _locationMap[actionType] = position;
+
       switch (actionType) {
         case 'officeIn':
           _officeTimeIn = now;
@@ -99,12 +126,36 @@ class _MarkAttendanceState extends State<MarkAttendance> {
           children: [
             Text(
                 '$actionType recorded at ${DateFormat('hh:mm a').format(now)}'),
-            if (_currentPosition != null)
-              Text(_getLocationText(), style: const TextStyle(fontSize: 12)),
+            Text(_formatLocation(position),
+                style: const TextStyle(fontSize: 12)),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmOfficeOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Office Time-Out'),
+        content: const Text('Are you sure you want to mark Office Time-Out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _handleAction('officeOut');
+    }
   }
 
   @override
@@ -135,7 +186,9 @@ class _MarkAttendanceState extends State<MarkAttendance> {
               icon: Icons.login,
               title: 'Office Time-In',
               time: _recordTime(_officeTimeIn),
-              location: _officeTimeIn != null ? _getLocationText() : null,
+              location: _locationMap['officeIn'] != null
+                  ? _formatLocation(_locationMap['officeIn']!)
+                  : null,
               onPressed: _officeTimeIn == null
                   ? () => _handleAction('officeIn')
                   : null,
@@ -144,7 +197,9 @@ class _MarkAttendanceState extends State<MarkAttendance> {
               icon: Icons.restaurant,
               title: 'Lunch Time-Start',
               time: _recordTime(_lunchTimeStart),
-              location: _lunchTimeStart != null ? _getLocationText() : null,
+              location: _locationMap['lunchStart'] != null
+                  ? _formatLocation(_locationMap['lunchStart']!)
+                  : null,
               onPressed: _officeTimeIn != null &&
                       _lunchTimeStart == null &&
                       _officeTimeOut == null
@@ -155,7 +210,9 @@ class _MarkAttendanceState extends State<MarkAttendance> {
               icon: Icons.restaurant_menu,
               title: 'Lunch Time-End',
               time: _recordTime(_lunchTimeEnd),
-              location: _lunchTimeEnd != null ? _getLocationText() : null,
+              location: _locationMap['lunchEnd'] != null
+                  ? _formatLocation(_locationMap['lunchEnd']!)
+                  : null,
               onPressed: _lunchTimeStart != null &&
                       _lunchTimeEnd == null &&
                       _officeTimeOut == null
@@ -166,9 +223,11 @@ class _MarkAttendanceState extends State<MarkAttendance> {
               icon: Icons.logout,
               title: 'Office Time-Out',
               time: _recordTime(_officeTimeOut),
-              location: _officeTimeOut != null ? _getLocationText() : null,
+              location: _locationMap['officeOut'] != null
+                  ? _formatLocation(_locationMap['officeOut']!)
+                  : null,
               onPressed: _officeTimeIn != null && _officeTimeOut == null
-                  ? () => _handleAction('officeOut')
+                  ? _confirmOfficeOut
                   : null,
             ),
             const SizedBox(height: 30),
