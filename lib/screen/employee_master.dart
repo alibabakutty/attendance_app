@@ -1,11 +1,14 @@
+import 'package:attendance_app/authentication/auth_provider.dart';
 import 'package:attendance_app/modals/employee_master_data.dart';
 import 'package:attendance_app/service/firebase_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 class EmployeeMaster extends StatefulWidget {
-  const EmployeeMaster({super.key});
+  const EmployeeMaster({super.key, this.mobileNumber});
+  final String? mobileNumber;
 
   @override
   State<EmployeeMaster> createState() => _EmployeeMasterState();
@@ -17,7 +20,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
   Timestamp? _dateOfJoining;
   final TextEditingController _employeeIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _mobileController =
+  final TextEditingController _mobileNumberController =
       TextEditingController(); // New mobile controller
   final TextEditingController _aadhaarController = TextEditingController();
   final TextEditingController _panController = TextEditingController();
@@ -25,6 +28,47 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isSubmitting = false;
   bool _obscurePassword = true;
+  bool _isEditing = false;
+
+  EmployeeMasterData? _employeeData;
+  String? mobileNumberFromArgs;
+
+  @override
+  void initState() {
+    super.initState();
+    mobileNumberFromArgs = widget.mobileNumber;
+    if (mobileNumberFromArgs != null) {
+      _mobileNumberController.text = mobileNumberFromArgs!;
+    }
+    _fetchEmployeeData();
+  }
+
+  Future<void> _fetchEmployeeData() async {
+    if (mobileNumberFromArgs != null) {
+      try {
+        _employeeData = await _firebaseService
+            .fetchEmployeeMasterDataByMobileNumber(mobileNumberFromArgs!);
+        if (_employeeData != null) {
+          setState(() {
+            _employeeIdController.text = _employeeData!.employeeId;
+            _nameController.text = _employeeData!.employeeName;
+            _mobileNumberController.text = _employeeData!.mobileNumber;
+            _dateOfJoining = _employeeData!.dateOfJoining;
+            _aadhaarController.text = _employeeData!.aadhaarNumber;
+            _panController.text = _employeeData!.panNumber;
+            _emailController.text = _employeeData!.email;
+            // Password should not be pre-filled for security reasons
+            _passwordController.text = _employeeData!.password;
+            _isEditing = true;
+          });
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching employee data: $e')),
+        );
+      }
+    }
+  }
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
@@ -38,30 +82,73 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
           return;
         }
 
-        final employeeMasterData = EmployeeMasterData(
-          employeeId: _employeeIdController.text.trim(),
-          employeeName: _nameController.text.trim(),
-          mobileNumber: _mobileController.text.trim(), // Include mobile number
-          dateOfJoining: _dateOfJoining!,
-          aadhaarNumber: _aadhaarController.text.trim(),
-          panNumber: _panController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-          createdAt: Timestamp.now(),
-        );
+        final employeeDataMap = {
+          'employee_id': _employeeIdController.text.trim(),
+          'employee_name': _nameController.text.trim(),
+          'mobile_number': _mobileNumberController.text.trim(),
+          'date_of_joining': _dateOfJoining!,
+          'aadhaar_number': _aadhaarController.text.trim(),
+          'pan_number': _panController.text.trim(),
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
+          'updated_at': Timestamp.now(),
+        };
 
-        final success =
-            await _firebaseService.addNewEmployeeData(employeeMasterData);
+        bool success;
+
+        if (_isEditing) {
+          // ✅ Call update function
+          success =
+              await _firebaseService.updateEmployeeMasterDataByMobileNumber(
+            _mobileNumberController.text.trim(),
+            employeeDataMap,
+          );
+        } else {
+          // ✅ First create auth account
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
+
+          await authProvider.createAccount(
+            username: _nameController.text.trim(),
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+            employeeId: _employeeIdController.text.trim(),
+            mobileNumber: _mobileNumberController.text.trim(),
+            isAdmin: false,
+          );
+
+          // ✅ Then add employee data
+          final employeeMasterData = EmployeeMasterData(
+            employeeId: _employeeIdController.text.trim(),
+            employeeName: _nameController.text.trim(),
+            mobileNumber: _mobileNumberController.text.trim(),
+            dateOfJoining: _dateOfJoining!,
+            aadhaarNumber: _aadhaarController.text.trim(),
+            panNumber: _panController.text.trim(),
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+            createdAt: Timestamp.now(),
+          );
+
+          success =
+              await _firebaseService.addNewEmployeeData(employeeMasterData);
+        }
 
         if (success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Employee added successfully!')),
+            SnackBar(
+              content: Text(
+                _isEditing
+                    ? 'Employee updated successfully!'
+                    : 'Employee added successfully!',
+              ),
+            ),
           );
           Navigator.pop(context);
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Failed to add employee. Please try again.')),
+                content: Text('Operation failed. Please try again.')),
           );
         }
       } catch (e) {
@@ -71,9 +158,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
           );
         }
       } finally {
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-        }
+        if (mounted) setState(() => _isSubmitting = false);
       }
     }
   }
@@ -82,7 +167,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
   void dispose() {
     _employeeIdController.dispose();
     _nameController.dispose();
-    _mobileController.dispose(); // Dispose mobile controller
+    _mobileNumberController.dispose(); // Dispose mobile controller
     _aadhaarController.dispose();
     _panController.dispose();
     _emailController.dispose();
@@ -160,7 +245,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
 
                 // Mobile Number Field (New)
                 TextFormField(
-                  controller: _mobileController,
+                  controller: _mobileNumberController,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
                     labelText: 'Mobile Number',
@@ -323,8 +408,8 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                       ? const CircularProgressIndicator(
                           color: Colors.white,
                         )
-                      : const Text(
-                          'Save Employee',
+                      : Text(
+                          _isEditing ? 'Update Employee' : 'Add Employee',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

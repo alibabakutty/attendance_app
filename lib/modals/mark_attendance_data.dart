@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class MarkAttendanceData {
   final String employeeId;
   final String employeeName;
+  final String mobileNumber;
   final Timestamp attendanceDate;
   final Timestamp officeTimeIn;
   final GeoPoint officeTimeInLocation;
@@ -16,6 +17,7 @@ class MarkAttendanceData {
   MarkAttendanceData({
     required this.employeeId,
     required this.employeeName,
+    required this.mobileNumber,
     required this.attendanceDate,
     required this.officeTimeIn,
     required this.officeTimeInLocation,
@@ -31,6 +33,7 @@ class MarkAttendanceData {
     return MarkAttendanceData(
       employeeId: data['employee_id'] ?? '',
       employeeName: data['employee_name'] ?? '',
+      mobileNumber: data['mobile_number'] ?? '',
       attendanceDate: data['attendance_date'] ?? Timestamp.now(),
       officeTimeIn: data['office_time_in'] ?? Timestamp.now(),
       officeTimeInLocation: data['office_time_in_location'] ?? GeoPoint(0, 0),
@@ -48,6 +51,7 @@ class MarkAttendanceData {
     return {
       'employee_id': employeeId,
       'employee_name': employeeName,
+      'mobile_number': mobileNumber,
       'attendance_date': attendanceDate,
       'office_time_in': officeTimeIn,
       'office_time_in_location': officeTimeInLocation,

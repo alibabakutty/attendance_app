@@ -1,4 +1,5 @@
 import 'package:attendance_app/authentication/auth.dart';
+import 'package:attendance_app/screen/home_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -40,7 +41,7 @@ class _EmployeeLoginPageState extends State<EmployeeLoginPage> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const EmployeeLoginPage()),
+            MaterialPageRoute(builder: (context) => const HomePage()),
           );
         }
       } on FirebaseAuthException catch (e) {

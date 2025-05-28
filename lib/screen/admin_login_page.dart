@@ -15,6 +15,8 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _employeeIdController = TextEditingController();
+  final _mobileNumberController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _isSignUp = false; // Track if we're in signup mode
@@ -35,10 +37,13 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
       try {
         if (_isSignUp) {
-          // create new account
-          await _auth.createUserAccount(
+          // create new admin account
+          await _auth.createAdminAccount(
+            username: _usernameController.text.trim(),
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
+            employeeId: _employeeIdController.text.trim(),
+            mobileNumber: _mobileNumberController.text.trim(),
           );
         } else {
           // sign in existing account

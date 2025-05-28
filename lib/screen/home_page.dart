@@ -1,10 +1,18 @@
+import 'package:attendance_app/authentication/auth_provider.dart';
+import 'package:attendance_app/screen/attendance_history.dart';
 import 'package:attendance_app/screen/employee_profiles.dart';
 import 'package:attendance_app/screen/mark_attendance.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   void _onMarkAttendance(BuildContext context) {
     Navigator.push(
       context,
@@ -12,8 +20,11 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _onViewHistory() {
-    // TODO: Implement view attendance history
+  void _onViewHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AttendanceHistory()),
+    );
   }
 
   void _onProfileView(BuildContext context) {
@@ -26,12 +37,39 @@ class HomePage extends StatelessWidget {
   }
 
   void _onLogout() {
-    // TODO: Implement logout logic
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
+          return AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              TextButton(
+                child: const Text('Logout'),
+                onPressed: () {
+                  final isAdmin = authProvider.isAdmin;
+                  authProvider.logout();
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushReplacementNamed(
+                      isAdmin ? '/adminLogin' : '/employeeLogin');
+                },
+              ),
+            ],
+          );
+        });
   }
 
   @override
   Widget build(BuildContext context) {
-    final String employeeName = "John Doe"; // Replace with actual user data
+    final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -54,7 +92,7 @@ class HomePage extends StatelessWidget {
           children: [
             // Greeting
             Text(
-              'Hello, $employeeName 👋',
+              'Hello, ${authProvider.username} 👋',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -85,7 +123,7 @@ class HomePage extends StatelessWidget {
                     icon: Icons.history,
                     title: 'Attendance History',
                     color: Colors.teal,
-                    onTap: _onViewHistory,
+                    onTap: () => _onViewHistory(context),
                   ),
                   _buildDashboardCard(
                     icon: Icons.person_outline,

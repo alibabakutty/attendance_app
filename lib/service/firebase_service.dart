@@ -90,6 +90,34 @@ class FirebaseService {
     return null;
   }
 
+  // fetch employee master data by employee mobile number
+  Future<EmployeeMasterData?> fetchEmployeeMasterDataByMobileNumber(
+      String mobileNumber) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('employee_master_data')
+        .where('mobile_number', isEqualTo: mobileNumber)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isNotEmpty) {
+      return EmployeeMasterData.fromFirestore(snapshot.docs.first.data());
+    }
+    return null;
+  }
+
+  // fetch mark attendance by mobile number
+  Future<MarkAttendanceData?> fetchMarkAttendanceDataByMobileNumber(
+      String mobileNumber) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('mark_attendance_data')
+        .where('mobile_number', isEqualTo: mobileNumber)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isNotEmpty) {
+      return MarkAttendanceData.fromFirestore(snapshot.docs.first.data());
+    }
+    return null;
+  }
+
   // fetch all employee master data
   Future<List<EmployeeMasterData>> getAllEmployeeMasterData() async {
     try {
@@ -234,6 +262,31 @@ class FirebaseService {
       }
     } catch (e, stackTrace) {
       print('Error updating employee master data by ID: $e, $stackTrace');
+      return false; // Handle error appropriately in your app
+    }
+  }
+
+  // update employee master data by mobile number
+  Future<bool> updateEmployeeMasterDataByMobileNumber(
+      String mobileNumber, Map<String, dynamic> updatedData) async {
+    try {
+      QuerySnapshot snapshot = await _db
+          .collection('employee_master_data')
+          .where('mobile_number', isEqualTo: mobileNumber)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        String docId = snapshot.docs.first.id;
+        await _db
+            .collection('employee_master_data')
+            .doc(docId)
+            .update(updatedData);
+        return true;
+      } else {
+        return false; // Document not found
+      }
+    } catch (e) {
+      print('Error updating employee master data by mobile number: $e');
       return false; // Handle error appropriately in your app
     }
   }

@@ -1,7 +1,12 @@
+import 'package:attendance_app/authentication/auth_provider.dart';
+import 'package:attendance_app/modals/mark_attendance_data.dart';
+import 'package:attendance_app/service/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 
 class MarkAttendance extends StatefulWidget {
   const MarkAttendance({super.key});
@@ -11,6 +16,8 @@ class MarkAttendance extends StatefulWidget {
 }
 
 class _MarkAttendanceState extends State<MarkAttendance> {
+  FirebaseService _firebaseService = FirebaseService();
+
   DateTime? _officeTimeIn;
   DateTime? _lunchTimeStart;
   DateTime? _lunchTimeEnd;
@@ -132,6 +139,72 @@ class _MarkAttendanceState extends State<MarkAttendance> {
         ),
       ),
     );
+
+    Future<void> _saveAttendanceToFirestore() async {
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+        final markAttendanceData = MarkAttendanceData(
+          employeeId:
+              '${authProvider.employeeId}', // Replace with actual employee ID
+          employeeName:
+              '${authProvider.username}', // Replace with actual employee name
+          mobileNumber:
+              '${authProvider.mobileNumber}', // Replace with actual mobile number
+          attendanceDate: Timestamp.fromDate(DateTime.now()),
+          officeTimeIn: Timestamp.fromDate(_officeTimeIn!),
+          officeTimeInLocation: GeoPoint(
+            _locationMap['officeIn']!.latitude,
+            _locationMap['officeIn']!.longitude,
+          ),
+          lunchTimeStart: _lunchTimeStart != null
+              ? Timestamp.fromDate(_lunchTimeStart!)
+              : Timestamp.fromDate(DateTime.now()),
+          lunchTimeStartLocation: _lunchTimeStart != null
+              ? GeoPoint(
+                  _locationMap['lunchStart']!.latitude,
+                  _locationMap['lunchStart']!.longitude,
+                )
+              : GeoPoint(0, 0),
+          lunchTimeEnd: _lunchTimeEnd != null
+              ? Timestamp.fromDate(_lunchTimeEnd!)
+              : Timestamp.fromDate(DateTime.now()),
+          lunchTimeEndLocation: _lunchTimeEnd != null
+              ? GeoPoint(
+                  _locationMap['lunchEnd']!.latitude,
+                  _locationMap['lunchEnd']!.longitude,
+                )
+              : GeoPoint(0, 0),
+          officeTimeOut: Timestamp.fromDate(_officeTimeOut!),
+          officeTimeOutLocation: GeoPoint(
+            _locationMap['officeOut']!.latitude,
+            _locationMap['officeOut']!.longitude,
+          ),
+        );
+
+        final success =
+            await _firebaseService.addNewMarkAttendanceData(markAttendanceData);
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Attendance saved successfully!')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save attendance.')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+
+    // if this is office out action, save to firestore
+    if (actionType == 'officeOut') {
+      await _saveAttendanceToFirestore();
+    }
   }
 
   Future<void> _confirmOfficeOut() async {

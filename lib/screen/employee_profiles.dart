@@ -1,4 +1,5 @@
 import 'package:attendance_app/modals/employee_master_data.dart';
+import 'package:attendance_app/screen/employee_master.dart';
 import 'package:attendance_app/service/firebase_service.dart';
 import 'package:flutter/material.dart';
 
@@ -22,11 +23,20 @@ class _EmployeeProfilesState extends State<EmployeeProfiles> {
 
   Future<void> _fetchEmployees() async {
     setState(() => _isLoading = true);
-    final data = await _firebaseService.getAllEmployeeMasterData();
-    setState(() {
-      _employeeData = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await _firebaseService.getAllEmployeeMasterData();
+      setState(() {
+        _employeeData = data;
+        _isLoading = false;
+      });
+      print("Fetched ${_employeeData.length} employees");
+    } catch (e) {
+      setState(() => _isLoading = false);
+      print("Error fetching employees: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load employee data: $e')),
+      );
+    }
   }
 
   Widget _buildEmployeeCard(EmployeeMasterData employee) {
@@ -54,7 +64,15 @@ class _EmployeeProfilesState extends State<EmployeeProfiles> {
         ),
         trailing: const Icon(Icons.arrow_forward_ios),
         onTap: () {
-          // Optional: handle tap to show details or edit
+          // Navigate to employee details page
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmployeeMaster(
+                mobileNumber: employee.mobileNumber,
+              ),
+            ),
+          );
         },
       ),
     );

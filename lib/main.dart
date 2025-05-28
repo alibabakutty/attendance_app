@@ -1,4 +1,6 @@
+import 'package:attendance_app/authentication/auth_provider.dart';
 import 'package:attendance_app/firebase_options.dart';
+import 'package:attendance_app/screen/attendance_history.dart';
 import 'package:attendance_app/screen/employee_login_page.dart';
 import 'package:attendance_app/screen/employee_master.dart';
 import 'package:attendance_app/screen/employee_profiles.dart';
@@ -8,6 +10,7 @@ import 'package:attendance_app/screen/mark_attendance.dart';
 import 'package:attendance_app/widget_tree.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,22 +26,26 @@ class AttendanceApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Cloud9 Attendance Management',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+    return ChangeNotifierProvider(
+      create: (context) => AuthProvider(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Cloud9 Attendance Management',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+        ),
+        // home: const WidgetTree(),
+        routes: {
+          '/': (context) => const WidgetTree(),
+          '/adminLogin': (context) => const AdminLoginPage(),
+          '/employeeLogin': (context) => const EmployeeLoginPage(),
+          '/home': (context) => const HomePage(),
+          '/employeeProfiles': (context) => const EmployeeProfiles(),
+          '/employeeMaster': (context) => const EmployeeMaster(),
+          '/markAttendance': (context) => const MarkAttendance(),
+          '/attendanceHistory': (context) => const AttendanceHistory(),
+        },
       ),
-      // home: const WidgetTree(),
-      routes: {
-        '/': (context) => const WidgetTree(),
-        '/adminLogin': (context) => const AdminLoginPage(),
-        '/employeeLogin': (context) => const EmployeeLoginPage(),
-        '/home': (context) => const HomePage(),
-        '/employeeProfiles': (context) => const EmployeeProfiles(),
-        '/employeeMaster': (context) => const EmployeeMaster(),
-        '/markAttendance': (context) => const MarkAttendance(),
-      },
     );
   }
 }
