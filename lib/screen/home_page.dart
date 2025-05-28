@@ -95,7 +95,7 @@ class HomePage extends StatelessWidget {
                   ),
                   _buildDashboardCard(
                     icon: Icons.settings,
-                    title: 'Settings',
+                    title: 'Employee Profiles Management',
                     color: Colors.purple,
                     onTap: () {
                       // Optional: navigate to settings

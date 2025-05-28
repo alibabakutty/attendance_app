@@ -1,23 +1,20 @@
 import 'package:attendance_app/authentication/auth.dart';
-import 'package:attendance_app/screen/home_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class EmployeeLoginPage extends StatefulWidget {
+  const EmployeeLoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<EmployeeLoginPage> createState() => _EmployeeLoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _EmployeeLoginPageState extends State<EmployeeLoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _usernameController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
-  bool _isSignUp = false; // Track if we're in signup mode
 
   final Auth _auth = Auth(); // Instance of Auth class
 
@@ -25,7 +22,6 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _usernameController.dispose();
     super.dispose();
   }
 
@@ -34,24 +30,17 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _isLoading = true);
 
       try {
-        if (_isSignUp) {
-          // create new account
-          await _auth.createUserAccount(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
-        } else {
-          // sign in existing account
-          await _auth.signIn(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
-        }
-        // on success navigate to home page
+        // Sign in employee
+        await _auth.signIn(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        // On success navigate to employee home page
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
+            MaterialPageRoute(builder: (context) => const EmployeeLoginPage()),
           );
         }
       } on FirebaseAuthException catch (e) {
@@ -70,20 +59,12 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _toggleSignUp() {
-    setState(() {
-      _isSignUp = !_isSignUp;
-      // Clear form when switching modes
-      if (!_isSignUp) {
-        _usernameController.clear();
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        title: const Text('Employee Login'),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -94,9 +75,11 @@ class _LoginPageState extends State<LoginPage> {
               // Logo and title
               Column(
                 children: [
+                  const Icon(Icons.person_outline,
+                      size: 80, color: Colors.blue),
                   const SizedBox(height: 16),
                   Text(
-                    _isSignUp ? 'Create Account' : 'Welcome Back',
+                    'Employee Portal',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
@@ -104,9 +87,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isSignUp
-                        ? 'Sign up to get started'
-                        : 'Sign in to continue',
+                    'Sign in to mark your attendance',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Colors.grey[600],
                         ),
@@ -119,32 +100,12 @@ class _LoginPageState extends State<LoginPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Show username field only in signup mode
-                    if (_isSignUp) ...[
-                      TextFormField(
-                        controller: _usernameController,
-                        decoration: InputDecoration(
-                          labelText: 'Username',
-                          prefixIcon: const Icon(Icons.person_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (_isSignUp && (value == null || value.isEmpty)) {
-                            return 'Please enter a username';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    // Email field (always visible)
+                    // Email field
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'Company Email',
                         prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -162,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    // Password field (always visible)
+                    // Password field
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
@@ -195,25 +156,25 @@ class _LoginPageState extends State<LoginPage> {
                       },
                     ),
                     const SizedBox(height: 8),
-                    // Forgot password (only in login mode)
-                    if (!_isSignUp)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () async {
-                            await _handleForgotPassword();
-                          },
-                          child: const Text('Forgot Password?'),
-                        ),
+                    // Forgot password
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () async {
+                          await _handleForgotPassword();
+                        },
+                        child: const Text('Forgot Password?'),
                       ),
+                    ),
                     const SizedBox(height: 24),
-                    // Submit button
+                    // Sign in button
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _submitForm,
                         style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -223,9 +184,10 @@ class _LoginPageState extends State<LoginPage> {
                                 color: Colors.white,
                                 strokeWidth: 2,
                               )
-                            : Text(
-                                _isSignUp ? 'Sign Up' : 'Sign In',
-                                style: const TextStyle(fontSize: 16),
+                            : const Text(
+                                'Sign In',
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.white),
                               ),
                       ),
                     ),
@@ -234,51 +196,35 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 24),
               // Divider with "or" text
-              Row(
-                children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'OR',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ),
-                  const Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Social login buttons
-              SizedBox(
-                height: 50,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.g_mobiledata, size: 24),
-                  label: Text(_isSignUp
-                      ? 'Sign up with Google'
-                      : 'Continue with Google'),
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    side: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  onPressed: _isLoading ? null : _handleGoogleSignIn,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Toggle between sign up and sign in
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(_isSignUp
-                      ? "Already have an account?"
-                      : "Don't have an account?"),
-                  TextButton(
-                    onPressed: _toggleSignUp,
-                    child: Text(_isSignUp ? 'Sign In' : 'Sign Up'),
-                  ),
-                ],
-              ),
+              // Row(
+              //   children: [
+              //     const Expanded(child: Divider()),
+              //     Padding(
+              //       padding: const EdgeInsets.symmetric(horizontal: 16),
+              //       child: Text(
+              //         'OR',
+              //         style: TextStyle(color: Colors.grey[600]),
+              //       ),
+              //     ),
+              //     const Expanded(child: Divider()),
+              //   ],
+              // ),
+              // const SizedBox(height: 24),
+              // // QR Code login option
+              // SizedBox(
+              //   height: 50,
+              //   child: OutlinedButton.icon(
+              //     icon: const Icon(Icons.qr_code, size: 24),
+              //     label: const Text('Scan QR Code to Login'),
+              //     style: OutlinedButton.styleFrom(
+              //       shape: RoundedRectangleBorder(
+              //         borderRadius: BorderRadius.circular(10),
+              //       ),
+              //       side: BorderSide(color: Colors.grey.shade300),
+              //     ),
+              //     onPressed: _isLoading ? null : _handleQRCodeLogin,
+              //   ),
+              // ),
             ],
           ),
         ),
@@ -314,31 +260,11 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    try {
-      setState(() => _isLoading = true);
-      final userCredential = await _auth.siginInWithGoogle();
-
-      if (userCredential != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error signing in with Google: $e',
-              style: const TextStyle(fontSize: 16),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
+  // Future<void> _handleQRCodeLogin() async {
+  //   // Implement QR code scanning logic here
+  //   // For now, just show a placeholder
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(content: Text('QR Code login functionality coming soon!')),
+  //   );
+  // }
 }

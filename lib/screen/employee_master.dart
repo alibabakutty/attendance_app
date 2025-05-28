@@ -1,3 +1,6 @@
+import 'package:attendance_app/modals/employee_master_data.dart';
+import 'package:attendance_app/service/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -9,19 +12,82 @@ class EmployeeMaster extends StatefulWidget {
 }
 
 class _EmployeeMasterState extends State<EmployeeMaster> {
+  final FirebaseService _firebaseService = FirebaseService();
   final _formKey = GlobalKey<FormState>();
-  DateTime? _dateOfJoining;
+  Timestamp? _dateOfJoining;
   final TextEditingController _employeeIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _mobileController =
+      TextEditingController(); // New mobile controller
   final TextEditingController _aadhaarController = TextEditingController();
   final TextEditingController _panController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isSubmitting = false;
+  bool _obscurePassword = true;
+
+  Future<void> _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isSubmitting = true);
+
+      try {
+        if (_dateOfJoining == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select a date of joining')),
+          );
+          return;
+        }
+
+        final employeeMasterData = EmployeeMasterData(
+          employeeId: _employeeIdController.text.trim(),
+          employeeName: _nameController.text.trim(),
+          mobileNumber: _mobileController.text.trim(), // Include mobile number
+          dateOfJoining: _dateOfJoining!,
+          aadhaarNumber: _aadhaarController.text.trim(),
+          panNumber: _panController.text.trim(),
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          createdAt: Timestamp.now(),
+        );
+
+        final success =
+            await _firebaseService.addNewEmployeeData(employeeMasterData);
+
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Employee added successfully!')),
+          );
+          Navigator.pop(context);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Failed to add employee. Please try again.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
     _employeeIdController.dispose();
     _nameController.dispose();
+    _mobileController.dispose(); // Dispose mobile controller
     _aadhaarController.dispose();
     _panController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _dateOfJoining = null;
     super.dispose();
   }
 
@@ -32,9 +98,9 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != _dateOfJoining) {
+    if (picked != null) {
       setState(() {
-        _dateOfJoining = picked;
+        _dateOfJoining = Timestamp.fromDate(picked);
       });
     }
   }
@@ -47,15 +113,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                // Save logic here
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Employee details saved')),
-                );
-                Navigator.pop(context); // Return to previous screen
-              }
-            },
+            onPressed: _isSubmitting ? null : _submitForm,
           ),
         ],
       ),
@@ -66,6 +124,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
           child: SingleChildScrollView(
             child: Column(
               children: [
+                // Employee ID Field
                 TextFormField(
                   controller: _employeeIdController,
                   decoration: const InputDecoration(
@@ -81,6 +140,8 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                   },
                 ),
                 const SizedBox(height: 16),
+
+                // Employee Name Field
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
@@ -96,6 +157,35 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                   },
                 ),
                 const SizedBox(height: 16),
+
+                // Mobile Number Field (New)
+                TextFormField(
+                  controller: _mobileController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile Number',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                    hintText: '10-digit mobile number',
+                    prefixText: '+91 ',
+                  ),
+                  maxLength: 10,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter mobile number';
+                    }
+                    if (value.length != 10) {
+                      return 'Mobile number must be 10 digits';
+                    }
+                    if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                      return 'Only numbers are allowed';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Date of Joining Field
                 InkWell(
                   onTap: () => _selectDate(context),
                   child: InputDecorator(
@@ -111,7 +201,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                           _dateOfJoining == null
                               ? 'Select date'
                               : DateFormat('dd/MM/yyyy')
-                                  .format(_dateOfJoining!),
+                                  .format(_dateOfJoining!.toDate()),
                         ),
                         const Icon(Icons.arrow_drop_down),
                       ],
@@ -119,6 +209,8 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Aadhaar Number Field
                 TextFormField(
                   controller: _aadhaarController,
                   decoration: const InputDecoration(
@@ -128,7 +220,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                     hintText: 'XXXX XXXX XXXX',
                   ),
                   keyboardType: TextInputType.number,
-                  maxLength: 14,
+                  maxLength: 12,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter Aadhaar number';
@@ -140,6 +232,8 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                   },
                 ),
                 const SizedBox(height: 16),
+
+                // PAN Number Field
                 TextFormField(
                   controller: _panController,
                   decoration: const InputDecoration(
@@ -159,21 +253,83 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // Save logic here
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Employee details saved')),
-                      );
-                      Navigator.pop(context);
+                const SizedBox(height: 16),
+
+                // Email Field
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                    hintText: 'employee@company.com',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter email address';
                     }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                        .hasMatch(value)) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
                   },
+                ),
+                const SizedBox(height: 16),
+
+                // Password Field
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                    ),
+                    hintText: 'At least 6 characters',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter password';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Submit Button
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitForm,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: Colors.blue,
                   ),
-                  child: const Text('Save Employee'),
+                  child: _isSubmitting
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
+                      : const Text(
+                          'Save Employee',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             ),

@@ -77,12 +77,12 @@ class _WidgetTreeState extends State<WidgetTree> {
                   ),
                   child: Column(
                     children: [
-                      // Login Button
+                      // Admin Login Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: () {
-                            // Handle login
+                            // Handle admin login
                             Navigator.pushNamed(context, '/adminLogin');
                           },
                           style: ElevatedButton.styleFrom(
@@ -104,7 +104,70 @@ class _WidgetTreeState extends State<WidgetTree> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 15),
+
+                      // Or divider
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: Colors.white.withOpacity(0.3),
+                              thickness: 1,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              'OR',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(
+                              color: Colors.white.withOpacity(0.3),
+                              thickness: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+
+                      // Employee Login Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Handle employee login
+                            Navigator.pushNamed(context, '/employeeLogin');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2193b0),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: Colors.white.withOpacity(0.5),
+                                width: 1,
+                              ),
+                            ),
+                            elevation: 3,
+                          ),
+                          child: const Text(
+                            'EMPLOYEE LOGIN',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 20),
+
                       Text(
                         'Version 1.0.0',
                         style: TextStyle(
