@@ -40,10 +40,19 @@ class _EmployeeProfilesState extends State<EmployeeProfiles> {
   }
 
   Widget _buildEmployeeCard(EmployeeMasterData employee) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         leading: const CircleAvatar(
@@ -52,19 +61,24 @@ class _EmployeeProfilesState extends State<EmployeeProfiles> {
         ),
         title: Text(
           employee.employeeName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0D47A1), // dark blue
+            fontSize: 18,
+          ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Text("ID: ${employee.employeeId}"),
-            // Text("DOJ: ${employee.dateOfJoining}"),
+            Text(
+              "ID: ${employee.employeeId}",
+              style: const TextStyle(color: Colors.black54),
+            ),
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios),
+        trailing: const Icon(Icons.arrow_forward_ios, color: Color(0xFF0D47A1)),
         onTap: () {
-          // Navigate to employee details page
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -81,6 +95,7 @@ class _EmployeeProfilesState extends State<EmployeeProfiles> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFE3F2FD), // Soft light blue background
       appBar: AppBar(
         title: const Text('Employee Profiles'),
         centerTitle: true,
@@ -89,7 +104,12 @@ class _EmployeeProfilesState extends State<EmployeeProfiles> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _employeeData.isEmpty
-              ? const Center(child: Text('No employees added yet'))
+              ? const Center(
+                  child: Text(
+                    'No employees added yet',
+                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                  ),
+                )
               : RefreshIndicator(
                   onRefresh: _fetchEmployees,
                   child: ListView.builder(

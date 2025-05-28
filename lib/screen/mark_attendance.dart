@@ -235,84 +235,130 @@ class _MarkAttendanceState extends State<MarkAttendance> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mark Attendance'),
+        title: const Text('Mark Attendance',
+            style: TextStyle(fontSize: 20, color: Colors.white)),
+        backgroundColor: Color(0xFF0D47A1),
+        centerTitle: true,
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Today: ${DateFormat('dd MMMM yyyy').format(DateTime.now())}',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            if (_locationError.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  _locationError,
-                  style: const TextStyle(color: Colors.red),
+      // Gradient background
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF0D47A1),
+              Color(0xFF1976D2),
+              Color(0xFF42A5F5),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // App bar replacement with title & logout
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '',
+                      style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    // You can add logout/profile icon here if you want
+                  ],
                 ),
-              ),
-            const SizedBox(height: 20),
-            _buildTimeCard(
-              icon: Icons.login,
-              title: 'Office Time-In',
-              time: _recordTime(_officeTimeIn),
-              location: _locationMap['officeIn'] != null
-                  ? _formatLocation(_locationMap['officeIn']!)
-                  : null,
-              onPressed: _officeTimeIn == null
-                  ? () => _handleAction('officeIn')
-                  : null,
-            ),
-            _buildTimeCard(
-              icon: Icons.restaurant,
-              title: 'Lunch Time-Start',
-              time: _recordTime(_lunchTimeStart),
-              location: _locationMap['lunchStart'] != null
-                  ? _formatLocation(_locationMap['lunchStart']!)
-                  : null,
-              onPressed: _officeTimeIn != null &&
-                      _lunchTimeStart == null &&
-                      _officeTimeOut == null
-                  ? () => _handleAction('lunchStart')
-                  : null,
-            ),
-            _buildTimeCard(
-              icon: Icons.restaurant_menu,
-              title: 'Lunch Time-End',
-              time: _recordTime(_lunchTimeEnd),
-              location: _locationMap['lunchEnd'] != null
-                  ? _formatLocation(_locationMap['lunchEnd']!)
-                  : null,
-              onPressed: _lunchTimeStart != null &&
-                      _lunchTimeEnd == null &&
-                      _officeTimeOut == null
-                  ? () => _handleAction('lunchEnd')
-                  : null,
-            ),
-            _buildTimeCard(
-              icon: Icons.logout,
-              title: 'Office Time-Out',
-              time: _recordTime(_officeTimeOut),
-              location: _locationMap['officeOut'] != null
-                  ? _formatLocation(_locationMap['officeOut']!)
-                  : null,
-              onPressed: _officeTimeIn != null && _officeTimeOut == null
-                  ? _confirmOfficeOut
-                  : null,
-            ),
-            const SizedBox(height: 30),
-            if (_isSubmitted)
-              const Center(
-                child: Chip(
-                  label: Text('Attendance Submitted'),
-                  backgroundColor: Colors.green,
-                  labelStyle: TextStyle(color: Colors.white),
+                const SizedBox(height: 12),
+                Text(
+                  'Today: ${DateFormat('dd MMMM yyyy').format(DateTime.now())}',
+                  style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                        color: Colors.white70,
+                      ),
                 ),
-              ),
-          ],
+                if (_locationError.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      _locationError,
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      _buildTimeCard(
+                        icon: Icons.login,
+                        title: 'Office Time-In',
+                        time: _recordTime(_officeTimeIn),
+                        location: _locationMap['officeIn'] != null
+                            ? _formatLocation(_locationMap['officeIn']!)
+                            : null,
+                        onPressed: _officeTimeIn == null
+                            ? () => _handleAction('officeIn')
+                            : null,
+                      ),
+                      _buildTimeCard(
+                        icon: Icons.restaurant,
+                        title: 'Lunch Time-Start',
+                        time: _recordTime(_lunchTimeStart),
+                        location: _locationMap['lunchStart'] != null
+                            ? _formatLocation(_locationMap['lunchStart']!)
+                            : null,
+                        onPressed: _officeTimeIn != null &&
+                                _lunchTimeStart == null &&
+                                _officeTimeOut == null
+                            ? () => _handleAction('lunchStart')
+                            : null,
+                      ),
+                      _buildTimeCard(
+                        icon: Icons.restaurant_menu,
+                        title: 'Lunch Time-End',
+                        time: _recordTime(_lunchTimeEnd),
+                        location: _locationMap['lunchEnd'] != null
+                            ? _formatLocation(_locationMap['lunchEnd']!)
+                            : null,
+                        onPressed: _lunchTimeStart != null &&
+                                _lunchTimeEnd == null &&
+                                _officeTimeOut == null
+                            ? () => _handleAction('lunchEnd')
+                            : null,
+                      ),
+                      _buildTimeCard(
+                        icon: Icons.logout,
+                        title: 'Office Time-Out',
+                        time: _recordTime(_officeTimeOut),
+                        location: _locationMap['officeOut'] != null
+                            ? _formatLocation(_locationMap['officeOut']!)
+                            : null,
+                        onPressed:
+                            _officeTimeIn != null && _officeTimeOut == null
+                                ? _confirmOfficeOut
+                                : null,
+                      ),
+                      const SizedBox(height: 30),
+                      if (_isSubmitted)
+                        Center(
+                          child: Chip(
+                            label: const Text('Attendance Submitted'),
+                            backgroundColor: Colors.green,
+                            labelStyle: const TextStyle(color: Colors.white),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -326,29 +372,45 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     VoidCallback? onPressed,
   }) {
     return Card(
+      elevation: 5,
       margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             Row(
               children: [
-                Icon(icon, size: 30, color: Colors.blue),
+                Icon(icon, size: 30, color: Colors.blue[700]),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title,
-                          style: Theme.of(context).textTheme.titleMedium),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.black87,
+                          )),
                       const SizedBox(height: 4),
-                      Text(time, style: const TextStyle(fontSize: 16)),
+                      Text(time,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                          )),
                     ],
                   ),
                 ),
                 if (onPressed != null)
                   ElevatedButton(
                     onPressed: onPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
                     child: const Text('Mark'),
                   )
                 else

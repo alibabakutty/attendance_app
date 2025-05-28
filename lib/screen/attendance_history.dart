@@ -1,5 +1,6 @@
 import 'package:attendance_app/modals/mark_attendance_data.dart';
 import 'package:attendance_app/service/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -54,6 +55,24 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
               : _endDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      builder: (context, child) {
+        // Light yellow background for date picker dialog as well
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.orange.shade700,
+              onPrimary: Colors.white,
+              onSurface: Colors.black87,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange.shade700,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
@@ -121,7 +140,7 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
     final snapshot = await _firebaseService.getAllMarkAttendanceData();
     return snapshot.where((record) {
       final recordDate = record.attendanceDate.toDate();
-      return recordDate.isAfter(startOfDay) && recordDate.isBefore(endOfDay);
+      return !recordDate.isBefore(startOfDay) && !recordDate.isAfter(endOfDay);
     }).toList();
   }
 
@@ -133,7 +152,7 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
     final snapshot = await _firebaseService.getAllMarkAttendanceData();
     return snapshot.where((record) {
       final recordDate = record.attendanceDate.toDate();
-      return recordDate.isAfter(startDate) && recordDate.isBefore(endDate);
+      return !recordDate.isBefore(startDate) && !recordDate.isAfter(endDate);
     }).toList();
   }
 
@@ -161,9 +180,13 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
   Widget _buildSearchTypeSelector() {
     return DropdownButtonFormField<String>(
       value: _searchType,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'Search By',
-        border: OutlineInputBorder(),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        filled: true,
+        fillColor: Colors.white,
       ),
       items: const [
         DropdownMenuItem(value: 'date', child: Text('Date')),
@@ -177,6 +200,13 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
           _hasSearched = false;
           _attendanceList.clear();
           _errorMessage = '';
+          // Clear inputs on search type change
+          _employeeNameController.clear();
+          _employeeIdController.clear();
+          _employeeMobileNumberController.clear();
+          _specificDate = null;
+          _startDate = null;
+          _endDate = null;
         });
       },
     );
@@ -184,83 +214,140 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
 
   Widget _buildDateSearchOptions() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        RadioListTile(
-          title: const Text('Specific Date'),
-          value: 'specific',
-          groupValue: _specificDate != null ? 'specific' : 'range',
-          onChanged: (value) {
-            setState(() {
-              _startDate = null;
-              _endDate = null;
-            });
-          },
+        Row(
+          children: [
+            Expanded(
+              child: RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Specific Date'),
+                value: 'specific',
+                groupValue: _specificDate != null ||
+                        (_startDate == null && _endDate == null)
+                    ? 'specific'
+                    : 'range',
+                onChanged: (value) {
+                  setState(() {
+                    _startDate = null;
+                    _endDate = null;
+                    if (_specificDate == null) {
+                      _specificDate = DateTime.now();
+                    }
+                  });
+                },
+              ),
+            ),
+            Expanded(
+              child: RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Date Range'),
+                value: 'range',
+                groupValue: _startDate != null || _endDate != null
+                    ? 'range'
+                    : 'specific',
+                onChanged: (value) {
+                  setState(() {
+                    _specificDate = null;
+                    if (_startDate == null) _startDate = DateTime.now();
+                    if (_endDate == null) _endDate = DateTime.now();
+                  });
+                },
+              ),
+            ),
+          ],
         ),
-        if (_specificDate != null || (_startDate == null && _endDate == null))
-          _buildSpecificDateSelector(),
-        RadioListTile(
-          title: const Text('Date Range'),
-          value: 'range',
-          groupValue:
-              _startDate != null || _endDate != null ? 'range' : 'specific',
-          onChanged: (value) {
-            setState(() {
-              _specificDate = null;
-            });
-          },
-        ),
-        if (_startDate != null || _endDate != null || _specificDate == null)
-          _buildDateRangeSelector(),
+        const SizedBox(height: 12),
+        if (_specificDate != null) _buildSpecificDateSelector(),
+        if (_startDate != null && _endDate != null) _buildDateRangeSelector(),
       ],
     );
   }
 
   Widget _buildDateRangeSelector() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
               child: InkWell(
+                borderRadius: BorderRadius.circular(8),
                 onTap: () => _selectDate(context, isStartDate: true),
                 child: InputDecorator(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Start Date',
-                    border: OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
                   child: Text(
                     _startDate != null
                         ? DateFormat('dd-MM-yyyy').format(_startDate!)
                         : 'Select start date',
+                    style: TextStyle(
+                      color: _startDate != null
+                          ? Colors.black87
+                          : Colors.grey[600],
+                      fontWeight: _startDate != null
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: InkWell(
+                borderRadius: BorderRadius.circular(8),
                 onTap: () => _selectDate(context, isEndDate: true),
                 child: InputDecorator(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'End Date',
-                    border: OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
                   child: Text(
                     _endDate != null
                         ? DateFormat('dd-MM-yyyy').format(_endDate!)
                         : 'Select end date',
+                    style: TextStyle(
+                      color:
+                          _endDate != null ? Colors.black87 : Colors.grey[600],
+                      fontWeight: _endDate != null
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                    ),
                   ),
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: (_startDate != null && _endDate != null)
-              ? _searchAttendanceHistories
-              : null,
-          child: const Text('Search by Date Range'),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: (_startDate != null && _endDate != null)
+                ? _searchAttendanceHistories
+                : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text(
+              'Search by Date Range',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
         ),
       ],
     );
@@ -268,149 +355,344 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
 
   Widget _buildSpecificDateSelector() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
+          borderRadius: BorderRadius.circular(8),
           onTap: () => _selectDate(context, isSpecificDate: true),
           child: InputDecorator(
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Select Date',
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              filled: true,
+              fillColor: Colors.white,
             ),
             child: Text(
               _specificDate != null
                   ? DateFormat('dd-MM-yyyy').format(_specificDate!)
                   : 'Select a date',
+              style: TextStyle(
+                color:
+                    _specificDate != null ? Colors.black87 : Colors.grey[600],
+                fontWeight:
+                    _specificDate != null ? FontWeight.w600 : FontWeight.normal,
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: _specificDate != null ? _searchAttendanceHistories : null,
-          child: const Text('Search by Specific Date'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNameSearchField() {
-    return Column(
-      children: [
-        TextFormField(
-          controller: _employeeNameController,
-          decoration: const InputDecoration(
-            labelText: 'Employee Name',
-            border: OutlineInputBorder(),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed:
+                _specificDate != null ? _searchAttendanceHistories : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text(
+              'Search by Specific Date',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
           ),
         ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: _employeeNameController.text.isNotEmpty
-              ? _searchAttendanceHistories
-              : null,
-          child: const Text('Search by Name'),
-        ),
       ],
     );
   }
 
-  Widget _buildIdSearchField() {
-    return Column(
-      children: [
-        TextFormField(
-          controller: _employeeIdController,
-          decoration: const InputDecoration(
-            labelText: 'Employee ID',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: _employeeIdController.text.isNotEmpty
-              ? _searchAttendanceHistories
-              : null,
-          child: const Text('Search by ID'),
-        ),
-      ],
+  Widget _buildTextInputField(
+      {required String label,
+      required TextEditingController controller,
+      TextInputType keyboardType = TextInputType.text,
+      String? hintText}) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () => setState(() => controller.clear()),
+              )
+            : null,
+      ),
     );
   }
 
-  Widget _buildMobileSearchField() {
-    return Column(
-      children: [
-        TextFormField(
-          controller: _employeeMobileNumberController,
-          decoration: const InputDecoration(
-            labelText: 'Mobile Number',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.phone,
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: _employeeMobileNumberController.text.isNotEmpty
-              ? _searchAttendanceHistories
-              : null,
-          child: const Text('Search by Mobile'),
-        ),
-      ],
-    );
+  Widget _buildSearchInputFields() {
+    switch (_searchType) {
+      case 'name':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTextInputField(
+              label: 'Employee Name',
+              controller: _employeeNameController,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _employeeNameController.text.trim().isNotEmpty
+                    ? _searchAttendanceHistories
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.shade700,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text(
+                  'Search by Name',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        );
+      case 'id':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTextInputField(
+              label: 'Employee ID',
+              controller: _employeeIdController,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _employeeIdController.text.trim().isNotEmpty
+                    ? _searchAttendanceHistories
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.shade700,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text(
+                  'Search by ID',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        );
+      case 'mobile':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTextInputField(
+              label: 'Mobile Number',
+              controller: _employeeMobileNumberController,
+              keyboardType: TextInputType.phone,
+              hintText: 'Enter mobile number',
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                    _employeeMobileNumberController.text.trim().isNotEmpty
+                        ? _searchAttendanceHistories
+                        : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.shade700,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text(
+                  'Search by Mobile',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        );
+      case 'date':
+      default:
+        return _buildDateSearchOptions();
+    }
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildAttendanceList() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (!_hasSearched) {
       return const Center(
-        child: Text('Please perform a search to view attendance records'),
+        child: CircularProgressIndicator(),
       );
-    }
-
-    if (_errorMessage.isNotEmpty) {
-      return Center(child: Text(_errorMessage));
-    }
-
-    if (_attendanceList.isEmpty) {
-      return const Center(child: Text('No attendance records found'));
+    } else if (_errorMessage.isNotEmpty) {
+      return Center(
+        child: Text(
+          _errorMessage,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.redAccent,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    } else if (_attendanceList.isEmpty && _hasSearched) {
+      return const Center(
+        child: Text(
+          'No attendance records found',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      );
+    } else if (_attendanceList.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     return ListView.builder(
+      physics: const BouncingScrollPhysics(),
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
       itemCount: _attendanceList.length,
       itemBuilder: (context, index) {
         final attendance = _attendanceList[index];
-        final attendanceDate = attendance.attendanceDate.toDate();
+        final dateStr =
+            DateFormat('dd-MM-yyyy').format(attendance.attendanceDate.toDate());
+
+        String formatTimestamp(Timestamp? timestamp) {
+          return timestamp != null
+              ? DateFormat('hh:mm a').format(timestamp.toDate())
+              : 'N/A';
+        }
+
+        // For officeTimeIn
+        String timeInStr = formatTimestamp(attendance.officeTimeIn);
+        String timeOutStr = formatTimestamp(attendance.officeTimeOut);
+        String lunchInStr = formatTimestamp(attendance.lunchTimeStart);
+        String lunchOutStr = formatTimestamp(attendance.lunchTimeEnd);
 
         return Card(
-          margin: const EdgeInsets.symmetric(vertical: 8),
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          elevation: 3,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shadowColor: Colors.orange.shade200,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  attendance.employeeName,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  'Date: $dateStr',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.deepOrange,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text('ID: ${attendance.employeeId}'),
+                const SizedBox(height: 6),
                 Text(
-                    'Date: ${DateFormat('dd-MM-yyyy').format(attendanceDate)}'),
-                const SizedBox(height: 8),
-                if (attendance.officeTimeIn != null)
-                  Text(
-                      'Check-in: ${DateFormat('HH:mm').format(attendance.officeTimeIn!.toDate())}'),
-                if (attendance.officeTimeOut != null)
-                  Text(
-                      'Check-out: ${DateFormat('HH:mm').format(attendance.officeTimeOut!.toDate())}'),
-                if (attendance.lunchTimeStart != null)
-                  Text(
-                      'Lunch Start: ${DateFormat('HH:mm').format(attendance.lunchTimeStart!.toDate())}'),
-                if (attendance.lunchTimeEnd != null)
-                  Text(
-                      'Lunch End: ${DateFormat('HH:mm').format(attendance.lunchTimeEnd!.toDate())}'),
+                  'Employee: ${attendance.employeeName}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Employee ID: ${attendance.employeeId}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Mobile: ${attendance.mobileNumber ?? 'N/A'}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    // Time In
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Time In',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            timeInStr,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Lunch Start
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Lunch Start',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            lunchInStr,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Lunch End
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Lunch End',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.deepOrange,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            lunchOutStr,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Time Out
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Time Out',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            timeOutStr,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -422,30 +704,28 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF9E5), // Light yellow background
       appBar: AppBar(
+        backgroundColor: Colors.orange.shade700,
         title: const Text('Attendance History'),
+        centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildSearchTypeSelector(),
-            const SizedBox(height: 20),
-            if (_searchType == 'date') _buildDateSearchOptions(),
-            if (_searchType == 'name') _buildNameSearchField(),
-            if (_searchType == 'id') _buildIdSearchField(),
-            if (_searchType == 'mobile') _buildMobileSearchField(),
-            const SizedBox(height: 20),
-            const Divider(),
-            const SizedBox(height: 20),
-            Text(
-              'Search Results',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 10),
-            _buildSearchResults(),
-          ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildSearchTypeSelector(),
+              const SizedBox(height: 20),
+              _buildSearchInputFields(),
+              const SizedBox(height: 30),
+              if (_attendanceList.isNotEmpty ||
+                  _isLoading ||
+                  _errorMessage.isNotEmpty)
+                _buildAttendanceList(),
+            ],
+          ),
         ),
       ),
     );
