@@ -23,18 +23,16 @@ void main() async {
 class AttendanceApp extends StatelessWidget {
   const AttendanceApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
+      create: (context) => AuthProvider()..initialize(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Cloud9 Attendance Management',
         theme: ThemeData(
           primarySwatch: Colors.blue,
         ),
-        // home: const WidgetTree(),
         routes: {
           '/': (context) => const WidgetTree(),
           '/adminLogin': (context) => const AdminLoginPage(),

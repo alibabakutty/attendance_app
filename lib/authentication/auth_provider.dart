@@ -1,4 +1,5 @@
 import 'package:attendance_app/authentication/auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,11 +16,12 @@ class AuthProvider extends ChangeNotifier {
   String? _mobileNumber;
   String? _errorMessage;
   bool _isLoading = false;
+  DateTime? _sessionExpiry;
   late SharedPreferences _prefs;
 
   AuthProvider({Auth? auth}) : _auth = auth ?? Auth() {
     _initAuthState();
-    _loadSession();
+    _setupTokenRefresh();
   }
 
   // Getters
@@ -33,9 +35,54 @@ class AuthProvider extends ChangeNotifier {
   User? get currentUser => _currentUser;
   String? get errorMessage => _errorMessage;
   bool get isLoading => _isLoading;
+  DateTime? get sessionExpiry => _sessionExpiry;
+
+  Future<void> initialize() async {
+    _isLoading = true;
+    notifyListeners();
+
+    await _loadSession();
+
+    if (_isLoggedIn && _currentUser != null) {
+      final isValid = await validateSession();
+      if (isValid) {
+        await _loadUserData(_currentUser!.uid);
+      } else {
+        await logout();
+      }
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void _setupTokenRefresh() {
+    FirebaseAuth.instance.authStateChanges().listen((User? user) async {
+      if (user != null) {
+        final idTokenResult = await user.getIdTokenResult();
+        final expiryTime = idTokenResult.expirationTime;
+        if (expiryTime != null) {
+          final refreshTime = expiryTime.subtract(const Duration(minutes: 5));
+          final delay = refreshTime.difference(DateTime.now());
+
+          if (delay.inSeconds > 0) {
+            Future.delayed(delay, () async {
+              if (_currentUser != null) {
+                await _currentUser!.getIdToken(true);
+                _sessionExpiry = DateTime.now().add(const Duration(days: 7));
+                await _saveSession();
+              }
+            });
+          }
+        }
+      }
+    });
+  }
 
   // Initialize auth state listener
-  void _initAuthState() {
+  Future<void> _initAuthState() async {
+    await _loadSession();
+
     _auth.authStateChanges.listen((User? user) async {
       _currentUser = user;
       if (user != null) {
@@ -61,6 +108,13 @@ class AuthProvider extends ChangeNotifier {
     _employeeId = _prefs.getString('employeeId');
     _mobileNumber = _prefs.getString('mobileNumber');
 
+    final expiryString = _prefs.getString('sessionExpiry');
+    if (expiryString != null) {
+      _sessionExpiry = DateTime.parse(expiryString);
+    } else {
+      _sessionExpiry = null;
+    }
+
     if (_isLoggedIn) {
       notifyListeners();
     }
@@ -68,6 +122,8 @@ class AuthProvider extends ChangeNotifier {
 
   // Save current session to SharedPreferences
   Future<void> _saveSession() async {
+    _sessionExpiry = DateTime.now().add(Duration(days: 7)); // Example expiry
+
     await _prefs.setBool('isLoggedIn', _isLoggedIn);
     await _prefs.setBool('isAdmin', _isAdmin);
     await _prefs.setBool('isEmployee', _isEmployee);
@@ -75,6 +131,8 @@ class AuthProvider extends ChangeNotifier {
     await _prefs.setString('email', _email ?? '');
     await _prefs.setString('employeeId', _employeeId ?? '');
     await _prefs.setString('mobileNumber', _mobileNumber ?? '');
+    await _prefs.setString(
+        'sessionExpiry', _sessionExpiry?.toIso8601String() ?? '');
   }
 
   // Clear session data from SharedPreferences
@@ -84,6 +142,9 @@ class AuthProvider extends ChangeNotifier {
     await _prefs.remove('isEmployee');
     await _prefs.remove('username');
     await _prefs.remove('email');
+    await _prefs.remove('employeeId');
+    await _prefs.remove('mobileNumber');
+    await _prefs.remove('sessionExpiry');
   }
 
   // Reset all state variables
@@ -97,6 +158,7 @@ class AuthProvider extends ChangeNotifier {
     _mobileNumber = null;
     _errorMessage = null;
     _currentUser = null;
+    _sessionExpiry = null;
   }
 
   // Load user data from Firestore or other sources
@@ -122,6 +184,57 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // validate current session
+  // Validate current session
+  Future<bool> validateSession() async {
+    if (!_isLoggedIn) return false;
+
+    try {
+      // Check session expiry
+      if (_sessionExpiry == null || DateTime.now().isAfter(_sessionExpiry!)) {
+        await logout();
+        return false;
+      }
+
+      // Verify Firebase session
+      await _currentUser?.reload();
+      if (_currentUser == null) {
+        await logout();
+        return false;
+      }
+
+      // Verify Firestore data matches
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        await logout();
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      await logout();
+      return false;
+    }
+  }
+
+  // Refresh session data
+  Future<void> refreshSession() async {
+    if (_currentUser == null) return;
+
+    try {
+      await _currentUser!.reload();
+      await _loadUserData(_currentUser!.uid);
+      await _saveSession();
+    } catch (e) {
+      await logout();
+      throw Exception('Session refresh failed');
     }
   }
 

@@ -322,7 +322,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   Future<void> _handleGoogleSignIn() async {
     try {
       setState(() => _isLoading = true);
-      final userCredential = await _auth.siginInWithGoogle();
+      final userCredential = await _auth.signInWithGoogle();
 
       if (userCredential != null && mounted) {
         Navigator.pushReplacement(

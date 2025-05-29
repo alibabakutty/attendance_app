@@ -9,7 +9,6 @@ class Auth {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   User? get currentUser => _firebaseAuth.currentUser;
-
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
   Future<void> signIn({
@@ -44,6 +43,7 @@ class Auth {
         'mobile_number': mobileNumber,
         'isAdmin': true, // Mark as admin
         'createdAt': FieldValue.serverTimestamp(),
+        'lastLogin': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       rethrow;
@@ -60,24 +60,40 @@ class Auth {
   }
 
   // Google Sign In
-  Future<UserCredential?> siginInWithGoogle() async {
+  Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Trigger the google sign-in flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; // User cancelled the sign-in
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
+      if (googleUser == null) return null;
+      
+      final GoogleSignInAuthentication googleAuth = 
           await googleUser.authentication;
-      // Create a credential from the auth details
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      // Sign in to Firebase with the credential
-      return await _firebaseAuth.signInWithCredential(credential);
+      
+      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      
+      // Store user data if new user
+      if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+        await _firestore.collection('users').doc(userCredential.user?.uid).set({
+          'username': googleUser.displayName,
+          'email': googleUser.email,
+          'isAdmin': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Update last login for existing user
+        await _firestore.collection('users').doc(userCredential.user?.uid).update({
+          'lastLogin': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      return userCredential;
     } catch (e) {
       print('Error signing in with Google: $e');
-      return null; // Handle error appropriately in your app
+      return null;
     }
   }
 
@@ -97,6 +113,7 @@ class Auth {
   }
 
   Future<void> signOut() async {
+    await _googleSignIn.signOut();
     await _firebaseAuth.signOut();
   }
 
@@ -166,5 +183,14 @@ class Auth {
     await _firestore.collection('users').doc(user.uid).delete();
     // then delete auth accounts
     await user.delete();
+  }
+
+  Future<void> updatedLastLogin() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return;
+
+    await _firestore.collection('users').doc(user.uid).update({
+      'lastLogin': FieldValue.serverTimestamp(),
+    });
   }
 }
