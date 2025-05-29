@@ -7,10 +7,10 @@ class MarkAttendanceData {
   final Timestamp attendanceDate;
   final Timestamp officeTimeIn;
   final GeoPoint officeTimeInLocation;
-  final Timestamp lunchTimeStart;
-  final GeoPoint lunchTimeStartLocation;
-  final Timestamp lunchTimeEnd;
-  final GeoPoint lunchTimeEndLocation;
+  final Timestamp? lunchTimeStart;
+  final GeoPoint? lunchTimeStartLocation;
+  final Timestamp? lunchTimeEnd;
+  final GeoPoint? lunchTimeEndLocation;
   final Timestamp officeTimeOut;
   final GeoPoint officeTimeOutLocation;
 
@@ -21,10 +21,10 @@ class MarkAttendanceData {
     required this.attendanceDate,
     required this.officeTimeIn,
     required this.officeTimeInLocation,
-    required this.lunchTimeStart,
-    required this.lunchTimeStartLocation,
-    required this.lunchTimeEnd,
-    required this.lunchTimeEndLocation,
+    this.lunchTimeStart,
+    this.lunchTimeStartLocation,
+    this.lunchTimeEnd,
+    this.lunchTimeEndLocation,
     required this.officeTimeOut,
     required this.officeTimeOutLocation,
   });
@@ -37,10 +37,10 @@ class MarkAttendanceData {
       attendanceDate: data['attendance_date'] ?? Timestamp.now(),
       officeTimeIn: data['office_time_in'] ?? Timestamp.now(),
       officeTimeInLocation: data['office_time_in_location'] ?? GeoPoint(0, 0),
-      lunchTimeStart: data['lunch_time_start'] ?? Timestamp.now(),
+      lunchTimeStart: data['lunch_time_start'] ?? null,
       lunchTimeStartLocation:
           data['lunch_time_start_location'] ?? GeoPoint(0, 0),
-      lunchTimeEnd: data['lunch_time_end'] ?? Timestamp.now(),
+      lunchTimeEnd: data['lunch_time_end'] ?? null,
       lunchTimeEndLocation: data['lunch_time_end_location'] ?? GeoPoint(0, 0),
       officeTimeOut: data['office_time_out'] ?? Timestamp.now(),
       officeTimeOutLocation: data['office_time_out_location'] ?? GeoPoint(0, 0),

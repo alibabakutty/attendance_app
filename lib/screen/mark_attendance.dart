@@ -159,16 +159,15 @@ class _MarkAttendanceState extends State<MarkAttendance> {
           ),
           lunchTimeStart: _lunchTimeStart != null
               ? Timestamp.fromDate(_lunchTimeStart!)
-              : Timestamp.fromDate(DateTime.now()),
+              : null,
           lunchTimeStartLocation: _lunchTimeStart != null
               ? GeoPoint(
                   _locationMap['lunchStart']!.latitude,
                   _locationMap['lunchStart']!.longitude,
                 )
               : GeoPoint(0, 0),
-          lunchTimeEnd: _lunchTimeEnd != null
-              ? Timestamp.fromDate(_lunchTimeEnd!)
-              : Timestamp.fromDate(DateTime.now()),
+          lunchTimeEnd:
+              _lunchTimeEnd != null ? Timestamp.fromDate(_lunchTimeEnd!) : null,
           lunchTimeEndLocation: _lunchTimeEnd != null
               ? GeoPoint(
                   _locationMap['lunchEnd']!.latitude,
