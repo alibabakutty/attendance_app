@@ -106,7 +106,7 @@ class _EmployeeLoginPageState extends State<EmployeeLoginPage> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: 'Company Email',
+                        labelText: 'Employee Email',
                         prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),

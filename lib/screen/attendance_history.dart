@@ -19,7 +19,7 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
 
   DateTime? _startDate;
   DateTime? _endDate;
-  DateTime? _specificDate;
+  DateTime? _specificDate = DateTime.now();
   String _searchType = 'date';
   bool _isLoading = false;
   bool _hasSearched = false;

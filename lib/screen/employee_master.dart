@@ -194,7 +194,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add New Employee'),
+        title: Text(_isEditing ? 'Edit Employee Details' : 'Add New Employee'),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -409,7 +409,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                           color: Colors.white,
                         )
                       : Text(
-                          _isEditing ? 'Update Employee' : 'Add Employee',
+                          _isEditing ? 'Update Employee' : 'Save Employee',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

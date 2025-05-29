@@ -275,19 +275,20 @@ class FirebaseService {
           .where('mobile_number', isEqualTo: mobileNumber)
           .limit(1)
           .get();
-      if (snapshot.docs.isNotEmpty) {
-        String docId = snapshot.docs.first.id;
-        await _db
-            .collection('employee_master_data')
-            .doc(docId)
-            .update(updatedData);
-        return true;
-      } else {
-        return false; // Document not found
+      if (snapshot.docs.isEmpty) {
+        print('No employee found with mobile number: $mobileNumber');
+        return false; // No document found
       }
-    } catch (e) {
-      print('Error updating employee master data by mobile number: $e');
-      return false; // Handle error appropriately in your app
+      final docId = snapshot.docs.first.id;
+      await _db
+          .collection('employee_master_data')
+          .doc(docId)
+          .update(updatedData);
+      return true;
+    } catch (e, stackTrace) {
+      print('Update failed for mobile $mobileNumber: $e');
+      print('Stack trace: $stackTrace');
+      return false;
     }
   }
 
