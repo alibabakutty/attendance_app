@@ -317,6 +317,55 @@ class FirebaseService {
     }
   }
 
+  // update mark attendance data by mobile number
+  Future<bool> updateMarkAttendanceDataByMobileNumber(
+      String mobileNumber, Map<String, dynamic> updatedData) async {
+    try {
+      QuerySnapshot snapshot = await _db
+          .collection('mark_attendance_data')
+          .where('mobile_number', isEqualTo: mobileNumber)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        print('No attendance record found for mobile number: $mobileNumber');
+        return false; // No document found
+      }
+      final docId = snapshot.docs.first.id;
+      await _db
+          .collection('mark_attendance_data')
+          .doc(docId)
+          .update(updatedData);
+      return true;
+    } catch (e, stackTrace) {
+      print('Update failed for mobile $mobileNumber: $e');
+      print('Stack trace: $stackTrace');
+      return false;
+    }
+  }
+
+  Future<MarkAttendanceData?> getAttendanceForEmployee(
+  String employeeId, 
+  DateTime date
+) async {
+  try {
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('attendance')
+        .where('employeeId', isEqualTo: employeeId)
+        .where('attendanceDate', isGreaterThanOrEqualTo: Timestamp.fromDate(date))
+        .where('attendanceDate', isLessThan: Timestamp.fromDate(date.add(Duration(days: 1))))
+        .limit(1)
+        .get();
+
+    if (querySnapshot.docs.isNotEmpty) {
+      return MarkAttendanceData.fromFirestore(querySnapshot.docs.first.data());
+    }
+    return null;
+  } catch (e) {
+    print('Error fetching attendance: $e');
+    return null;
+  }
+}
+
   // delete employee master data by ID
   Future<bool> deleteEmployeeMasterDataById(String employeeId) async {
     try {

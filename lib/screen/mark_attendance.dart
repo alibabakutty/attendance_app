@@ -16,7 +16,12 @@ class MarkAttendance extends StatefulWidget {
 }
 
 class _MarkAttendanceState extends State<MarkAttendance> {
-  FirebaseService _firebaseService = FirebaseService();
+  final Map<String, Position?> _locationMap = {
+    'officeIn': null,
+    'lunchStart': null,
+    'lunchEnd': null,
+    'officeOut': null,
+  };
 
   DateTime? _officeTimeIn;
   DateTime? _lunchTimeStart;
@@ -24,13 +29,86 @@ class _MarkAttendanceState extends State<MarkAttendance> {
   DateTime? _officeTimeOut;
   bool _isSubmitted = false;
   String _locationError = '';
+  bool _isLoading = true;
+  bool _isFetching = false;
 
-  final Map<String, Position?> _locationMap = {
-    'officeIn': null,
-    'lunchStart': null,
-    'lunchEnd': null,
-    'officeOut': null,
-  };
+  @override
+  void initState() {
+    super.initState();
+    _fetchTodayAttendance();
+  }
+
+  Future<void> _fetchTodayAttendance() async {
+    if (_isFetching) return;
+
+    setState(() {
+      _isFetching = true;
+      _isLoading = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final docId =
+          '${authProvider.employeeId}_${DateFormat('yyyyMMdd').format(today)}';
+
+      final doc = await FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(docId)
+          .get();
+
+      if (doc.exists && mounted) {
+        final attendanceData = MarkAttendanceData.fromFirestore(doc.data()!);
+        setState(() {
+          _officeTimeIn = attendanceData.officeTimeIn?.toDate();
+          _lunchTimeStart = attendanceData.lunchTimeStart?.toDate();
+          _lunchTimeEnd = attendanceData.lunchTimeEnd?.toDate();
+          _officeTimeOut = attendanceData.officeTimeOut?.toDate();
+          _isSubmitted = _officeTimeOut != null;
+
+          _updateLocationFromData(
+              'officeIn', attendanceData.officeTimeInLocation);
+          _updateLocationFromData(
+              'lunchStart', attendanceData.lunchTimeStartLocation);
+          _updateLocationFromData(
+              'lunchEnd', attendanceData.lunchTimeEndLocation);
+          _updateLocationFromData(
+              'officeOut', attendanceData.officeTimeOutLocation);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching attendance: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isFetching = false;
+        });
+      }
+    }
+  }
+
+  void _updateLocationFromData(String key, GeoPoint? location) {
+    if (location != null && location.latitude != 0) {
+      _locationMap[key] = Position(
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: DateTime.now(),
+        accuracy: 0,
+        altitude: 0,
+        heading: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        altitudeAccuracy: 0,
+        headingAccuracy: 0,
+      );
+    }
+  }
 
   Future<Position?> _getCurrentLocation() async {
     try {
@@ -44,12 +122,10 @@ class _MarkAttendanceState extends State<MarkAttendance> {
       }
 
       PermissionStatus status = await Permission.location.status;
-
       if (status.isDenied ||
           status.isRestricted ||
           status.isPermanentlyDenied) {
         final newStatus = await Permission.location.request();
-
         if (newStatus.isPermanentlyDenied) {
           setState(() {
             _locationError =
@@ -58,7 +134,6 @@ class _MarkAttendanceState extends State<MarkAttendance> {
           openAppSettings();
           return null;
         }
-
         if (!newStatus.isGranted) {
           setState(() {
             _locationError = 'Location permission denied.';
@@ -84,27 +159,18 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     }
   }
 
-  String _recordTime(DateTime? time) {
-    return time != null ? DateFormat('hh:mm a').format(time) : 'Pending';
-  }
-
-  String _formatLocation(Position pos) {
-    return 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}';
+  String _formatLocation(Position? pos) {
+    return pos != null
+        ? 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}'
+        : 'Location not available';
   }
 
   Future<void> _handleAction(String actionType) async {
     final position = await _getCurrentLocation();
-
-    if (position == null) {
-      if (_locationError.isEmpty) {
-        setState(() {
-          _locationError = 'Location is required for attendance';
-        });
-      }
-      return;
-    }
+    if (position == null) return;
 
     final now = DateTime.now();
+
     setState(() {
       _locationMap[actionType] = position;
 
@@ -140,93 +206,77 @@ class _MarkAttendanceState extends State<MarkAttendance> {
       ),
     );
 
-    Future<void> _saveAttendanceToFirestore() async {
-      try {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await _saveAttendanceToFirestore();
+  }
 
-        final markAttendanceData = MarkAttendanceData(
-          employeeId:
-              '${authProvider.employeeId}', // Replace with actual employee ID
-          employeeName:
-              '${authProvider.username}', // Replace with actual employee name
-          mobileNumber:
-              '${authProvider.mobileNumber}', // Replace with actual mobile number
-          attendanceDate: Timestamp.fromDate(DateTime.now()),
-          officeTimeIn: Timestamp.fromDate(_officeTimeIn!),
-          officeTimeInLocation: GeoPoint(
-            _locationMap['officeIn']!.latitude,
-            _locationMap['officeIn']!.longitude,
-          ),
-          lunchTimeStart: _lunchTimeStart != null
-              ? Timestamp.fromDate(_lunchTimeStart!)
-              : null,
-          lunchTimeStartLocation: _lunchTimeStart != null
-              ? GeoPoint(
-                  _locationMap['lunchStart']!.latitude,
-                  _locationMap['lunchStart']!.longitude,
-                )
-              : GeoPoint(0, 0),
-          lunchTimeEnd:
-              _lunchTimeEnd != null ? Timestamp.fromDate(_lunchTimeEnd!) : null,
-          lunchTimeEndLocation: _lunchTimeEnd != null
-              ? GeoPoint(
-                  _locationMap['lunchEnd']!.latitude,
-                  _locationMap['lunchEnd']!.longitude,
-                )
-              : GeoPoint(0, 0),
-          officeTimeOut: Timestamp.fromDate(_officeTimeOut!),
-          officeTimeOutLocation: GeoPoint(
-            _locationMap['officeOut']!.latitude,
-            _locationMap['officeOut']!.longitude,
-          ),
-        );
+  Future<void> _saveAttendanceToFirestore() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final now = DateTime.now();
+      final docId =
+          '${authProvider.employeeId}_${DateFormat('yyyyMMdd').format(now)}';
 
-        final success =
-            await _firebaseService.addNewMarkAttendanceData(markAttendanceData);
+      final markAttendanceData = MarkAttendanceData(
+        employeeId: authProvider.employeeId!,
+        employeeName: authProvider.username!,
+        mobileNumber: authProvider.mobileNumber!,
+        attendanceDate: Timestamp.fromDate(now),
+        officeTimeIn:
+            _officeTimeIn != null ? Timestamp.fromDate(_officeTimeIn!) : null,
+        officeTimeInLocation: _locationMap['officeIn'] != null
+            ? GeoPoint(_locationMap['officeIn']!.latitude,
+                _locationMap['officeIn']!.longitude)
+            : null,
+        lunchTimeStart: _lunchTimeStart != null
+            ? Timestamp.fromDate(_lunchTimeStart!)
+            : null,
+        lunchTimeStartLocation: _locationMap['lunchStart'] != null
+            ? GeoPoint(_locationMap['lunchStart']!.latitude,
+                _locationMap['lunchStart']!.longitude)
+            : null,
+        lunchTimeEnd:
+            _lunchTimeEnd != null ? Timestamp.fromDate(_lunchTimeEnd!) : null,
+        lunchTimeEndLocation: _locationMap['lunchEnd'] != null
+            ? GeoPoint(_locationMap['lunchEnd']!.latitude,
+                _locationMap['lunchEnd']!.longitude)
+            : null,
+        officeTimeOut:
+            _officeTimeOut != null ? Timestamp.fromDate(_officeTimeOut!) : null,
+        officeTimeOutLocation: _locationMap['officeOut'] != null
+            ? GeoPoint(_locationMap['officeOut']!.latitude,
+                _locationMap['officeOut']!.longitude)
+            : null,
+      );
 
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Attendance saved successfully!')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save attendance.')),
-          );
-        }
-      } catch (e) {
+      await FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(docId)
+          .set(markAttendanceData.toFirestore(), SetOptions(merge: true));
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error saving attendance: ${e.toString()}')),
         );
       }
     }
-
-    // if this is office out action, save to firestore
-    if (actionType == 'officeOut') {
-      await _saveAttendanceToFirestore();
-    }
   }
 
-  Future<void> _confirmOfficeOut() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Office Time-Out'),
-        content: const Text('Are you sure you want to mark Office Time-Out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await _handleAction('officeOut');
+  bool _shouldEnableButton(String actionType) {
+    switch (actionType) {
+      case 'officeIn':
+        return _officeTimeIn == null;
+      case 'lunchStart':
+        return _officeTimeIn != null &&
+            _lunchTimeStart == null &&
+            _officeTimeOut == null;
+      case 'lunchEnd':
+        return _lunchTimeStart != null &&
+            _lunchTimeEnd == null &&
+            _officeTimeOut == null;
+      case 'officeOut':
+        return _officeTimeIn != null && _officeTimeOut == null;
+      default:
+        return false;
     }
   }
 
@@ -235,198 +285,201 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mark Attendance',
-            style: TextStyle(fontSize: 20, color: Colors.white)),
-        backgroundColor: Color(0xFF0D47A1),
+            style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.blue[800],
         centerTitle: true,
-        elevation: 0,
       ),
-      // Gradient background
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF0D47A1),
-              Color(0xFF1976D2),
-              Color(0xFF42A5F5),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // App bar replacement with title & logout
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '',
-                      style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    // You can add logout/profile icon here if you want
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Today: ${DateFormat('dd MMMM yyyy').format(DateTime.now())}',
-                  style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                        color: Colors.white70,
-                      ),
-                ),
-                if (_locationError.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      _locationError,
-                      style: const TextStyle(color: Colors.redAccent),
-                    ),
-                  ),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      _buildTimeCard(
-                        icon: Icons.login,
-                        title: 'Office Time-In',
-                        time: _recordTime(_officeTimeIn),
-                        location: _locationMap['officeIn'] != null
-                            ? _formatLocation(_locationMap['officeIn']!)
-                            : null,
-                        onPressed: _officeTimeIn == null
-                            ? () => _handleAction('officeIn')
-                            : null,
-                      ),
-                      _buildTimeCard(
-                        icon: Icons.restaurant,
-                        title: 'Lunch Time-Start',
-                        time: _recordTime(_lunchTimeStart),
-                        location: _locationMap['lunchStart'] != null
-                            ? _formatLocation(_locationMap['lunchStart']!)
-                            : null,
-                        onPressed: _officeTimeIn != null &&
-                                _lunchTimeStart == null &&
-                                _officeTimeOut == null
-                            ? () => _handleAction('lunchStart')
-                            : null,
-                      ),
-                      _buildTimeCard(
-                        icon: Icons.restaurant_menu,
-                        title: 'Lunch Time-End',
-                        time: _recordTime(_lunchTimeEnd),
-                        location: _locationMap['lunchEnd'] != null
-                            ? _formatLocation(_locationMap['lunchEnd']!)
-                            : null,
-                        onPressed: _lunchTimeStart != null &&
-                                _lunchTimeEnd == null &&
-                                _officeTimeOut == null
-                            ? () => _handleAction('lunchEnd')
-                            : null,
-                      ),
-                      _buildTimeCard(
-                        icon: Icons.logout,
-                        title: 'Office Time-Out',
-                        time: _recordTime(_officeTimeOut),
-                        location: _locationMap['officeOut'] != null
-                            ? _formatLocation(_locationMap['officeOut']!)
-                            : null,
-                        onPressed:
-                            _officeTimeIn != null && _officeTimeOut == null
-                                ? _confirmOfficeOut
-                                : null,
-                      ),
-                      const SizedBox(height: 30),
-                      if (_isSubmitted)
-                        Center(
-                          child: Chip(
-                            label: const Text('Attendance Submitted'),
-                            backgroundColor: Colors.green,
-                            labelStyle: const TextStyle(color: Colors.white),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
-                          ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(
+                    'Today: ${DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now())}',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[800],
                         ),
-                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  if (_locationError.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        _locationError,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  _buildAttendanceCard(
+                    icon: Icons.login,
+                    title: 'Office Time-In',
+                    time: _officeTimeIn,
+                    location: _locationMap['officeIn'],
+                    actionType: 'officeIn',
+                  ),
+                  _buildAttendanceCard(
+                    icon: Icons.restaurant,
+                    title: 'Lunch Start',
+                    time: _lunchTimeStart,
+                    location: _locationMap['lunchStart'],
+                    actionType: 'lunchStart',
+                  ),
+                  _buildAttendanceCard(
+                    icon: Icons.restaurant_menu,
+                    title: 'Lunch End',
+                    time: _lunchTimeEnd,
+                    location: _locationMap['lunchEnd'],
+                    actionType: 'lunchEnd',
+                  ),
+                  _buildAttendanceCard(
+                    icon: Icons.logout,
+                    title: 'Office Time-Out',
+                    time: _officeTimeOut,
+                    location: _locationMap['officeOut'],
+                    actionType: 'officeOut',
+                  ),
+                  if (_isSubmitted)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Attendance Completed',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ),
     );
   }
 
-  Widget _buildTimeCard({
+  Widget _buildAttendanceCard({
     required IconData icon,
     required String title,
-    required String time,
-    String? location,
-    VoidCallback? onPressed,
+    required DateTime? time,
+    required Position? location,
+    required String actionType,
   }) {
     return Card(
-      elevation: 5,
+      elevation: 4,
       margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Row(
               children: [
-                Icon(icon, size: 30, color: Colors.blue[700]),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: Colors.blue[800], size: 24),
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.black87,
-                          )),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(time,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
-                          )),
+                      Text(
+                        time != null
+                            ? DateFormat('hh:mm a').format(time)
+                            : 'Not marked yet',
+                        style: TextStyle(
+                          color: time != null ? Colors.green : Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (location != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            _formatLocation(location),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-                if (onPressed != null)
-                  ElevatedButton(
-                    onPressed: onPressed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                ElevatedButton(
+                  onPressed: _shouldEnableButton(actionType)
+                      ? () => actionType == 'officeOut'
+                          ? _confirmOfficeOut()
+                          : _handleAction(actionType)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _shouldEnableButton(actionType)
+                        ? Colors.blue[800]
+                        : Colors.grey,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text('Mark'),
-                  )
-                else
-                  const Icon(Icons.check_circle, color: Colors.green),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8), // <-- Correct placement
+                  ),
+                  child: const Text(
+                    'Mark',
+                    style: TextStyle(color: Colors.white),
+                  ), // <-- child correctly placed
+                ),
               ],
             ),
-            if (location != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  location,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmOfficeOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Office Time-Out'),
+        content: const Text(
+            'This will complete your attendance for today. Are you sure?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[800],
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _handleAction('officeOut');
+    }
   }
 }

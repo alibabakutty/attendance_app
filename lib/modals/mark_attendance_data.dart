@@ -5,28 +5,28 @@ class MarkAttendanceData {
   final String employeeName;
   final String mobileNumber;
   final Timestamp attendanceDate;
-  final Timestamp officeTimeIn;
-  final GeoPoint officeTimeInLocation;
+  final Timestamp? officeTimeIn;
+  final GeoPoint? officeTimeInLocation;
   final Timestamp? lunchTimeStart;
   final GeoPoint? lunchTimeStartLocation;
   final Timestamp? lunchTimeEnd;
   final GeoPoint? lunchTimeEndLocation;
-  final Timestamp officeTimeOut;
-  final GeoPoint officeTimeOutLocation;
+  final Timestamp? officeTimeOut;
+  final GeoPoint? officeTimeOutLocation;
 
   MarkAttendanceData({
     required this.employeeId,
     required this.employeeName,
     required this.mobileNumber,
     required this.attendanceDate,
-    required this.officeTimeIn,
-    required this.officeTimeInLocation,
+    this.officeTimeIn,
+    this.officeTimeInLocation,
     this.lunchTimeStart,
     this.lunchTimeStartLocation,
     this.lunchTimeEnd,
     this.lunchTimeEndLocation,
-    required this.officeTimeOut,
-    required this.officeTimeOutLocation,
+    this.officeTimeOut,
+    this.officeTimeOutLocation,
   });
   // Convert data from Firestore to MarkAttendanceData object
   factory MarkAttendanceData.fromFirestore(Map<String, dynamic> data) {
@@ -35,14 +35,14 @@ class MarkAttendanceData {
       employeeName: data['employee_name'] ?? '',
       mobileNumber: data['mobile_number'] ?? '',
       attendanceDate: data['attendance_date'] ?? Timestamp.now(),
-      officeTimeIn: data['office_time_in'] ?? Timestamp.now(),
+      officeTimeIn: data['office_time_in'] ?? null,
       officeTimeInLocation: data['office_time_in_location'] ?? GeoPoint(0, 0),
       lunchTimeStart: data['lunch_time_start'] ?? null,
       lunchTimeStartLocation:
           data['lunch_time_start_location'] ?? GeoPoint(0, 0),
       lunchTimeEnd: data['lunch_time_end'] ?? null,
       lunchTimeEndLocation: data['lunch_time_end_location'] ?? GeoPoint(0, 0),
-      officeTimeOut: data['office_time_out'] ?? Timestamp.now(),
+      officeTimeOut: data['office_time_out'] ?? null,
       officeTimeOutLocation: data['office_time_out_location'] ?? GeoPoint(0, 0),
     );
   }
