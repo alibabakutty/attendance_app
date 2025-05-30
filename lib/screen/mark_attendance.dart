@@ -1,6 +1,5 @@
 import 'package:attendance_app/authentication/auth_provider.dart';
 import 'package:attendance_app/modals/mark_attendance_data.dart';
-import 'package:attendance_app/service/firebase_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -54,7 +53,7 @@ class _MarkAttendanceState extends State<MarkAttendance> {
           '${authProvider.employeeId}_${DateFormat('yyyyMMdd').format(today)}';
 
       final doc = await FirebaseFirestore.instance
-          .collection('attendance')
+          .collection('mark_attendance_data')
           .doc(docId)
           .get();
 
@@ -216,6 +215,23 @@ class _MarkAttendanceState extends State<MarkAttendance> {
       final docId =
           '${authProvider.employeeId}_${DateFormat('yyyyMMdd').format(now)}';
 
+      // Determine status based on actions
+      String status = 'absent';
+      if (_officeTimeIn != null) {
+        if (_officeTimeOut != null) {
+          // check if lunch time was taken (both start and end)
+          if (_lunchTimeStart != null && _lunchTimeEnd != null) {
+            status = 'present';
+          } else {
+            // office time in and out marked but not lunch taken (or incomplete lunch)
+            status = 'half-day';
+          }
+        } else {
+          // only office time in marked
+          status = 'half-day';
+        }
+      }
+
       final markAttendanceData = MarkAttendanceData(
         employeeId: authProvider.employeeId!,
         employeeName: authProvider.username!,
@@ -246,10 +262,11 @@ class _MarkAttendanceState extends State<MarkAttendance> {
             ? GeoPoint(_locationMap['officeOut']!.latitude,
                 _locationMap['officeOut']!.longitude)
             : null,
+        status: status,
       );
 
       await FirebaseFirestore.instance
-          .collection('attendance')
+          .collection('mark_attendance_data')
           .doc(docId)
           .set(markAttendanceData.toFirestore(), SetOptions(merge: true));
     } catch (e) {
@@ -277,6 +294,29 @@ class _MarkAttendanceState extends State<MarkAttendance> {
         return _officeTimeIn != null && _officeTimeOut == null;
       default:
         return false;
+    }
+  }
+
+  String _getStatusForCard(String actionType) {
+    if (_officeTimeOut != null) return 'Completed';
+    if (_officeTimeIn == null) return actionType == 'officeIn' ? 'Absent' : '';
+    if (actionType == 'officeIn' && _officeTimeIn != null) return 'Present';
+    if (actionType == 'lunchStart' && _lunchTimeStart != null) return 'Present';
+    if (actionType == 'lunchEnd' && _lunchTimeEnd != null) return 'Present';
+    if (actionType == 'officeOut' && _officeTimeOut != null) return 'Completed';
+    return '';
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'present':
+        return Colors.green;
+      case 'completed':
+        return Colors.blue;
+      case 'absent':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -370,6 +410,8 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     required Position? location,
     required String actionType,
   }) {
+    final status = _getStatusForCard(actionType);
+
     return Card(
       elevation: 4,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -395,12 +437,35 @@ class _MarkAttendanceState extends State<MarkAttendance> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          if (status.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(status).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color: _getStatusColor(status),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -439,13 +504,13 @@ class _MarkAttendanceState extends State<MarkAttendance> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8), // <-- Correct placement
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
                   child: const Text(
                     'Mark',
                     style: TextStyle(color: Colors.white),
-                  ), // <-- child correctly placed
+                  ),
                 ),
               ],
             ),

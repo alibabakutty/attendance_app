@@ -13,6 +13,7 @@ class MarkAttendanceData {
   final GeoPoint? lunchTimeEndLocation;
   final Timestamp? officeTimeOut;
   final GeoPoint? officeTimeOutLocation;
+  final String? status;
 
   MarkAttendanceData({
     required this.employeeId,
@@ -27,6 +28,7 @@ class MarkAttendanceData {
     this.lunchTimeEndLocation,
     this.officeTimeOut,
     this.officeTimeOutLocation,
+    this.status,
   });
   // Convert data from Firestore to MarkAttendanceData object
   factory MarkAttendanceData.fromFirestore(Map<String, dynamic> data) {
@@ -44,6 +46,7 @@ class MarkAttendanceData {
       lunchTimeEndLocation: data['lunch_time_end_location'] ?? GeoPoint(0, 0),
       officeTimeOut: data['office_time_out'] ?? null,
       officeTimeOutLocation: data['office_time_out_location'] ?? GeoPoint(0, 0),
+      status: data['status'] ?? 'absent',
     );
   }
   // Convert MarkAttendanceData object to Firestore data
@@ -61,6 +64,7 @@ class MarkAttendanceData {
       'lunch_time_end_location': lunchTimeEndLocation,
       'office_time_out': officeTimeOut,
       'office_time_out_location': officeTimeOutLocation,
+      'status': status ?? 'absent',
     };
   }
 }

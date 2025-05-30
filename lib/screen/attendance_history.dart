@@ -56,7 +56,6 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
       builder: (context, child) {
-        // Light yellow background for date picker dialog as well
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
@@ -200,7 +199,6 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
           _hasSearched = false;
           _attendanceList.clear();
           _errorMessage = '';
-          // Clear inputs on search type change
           _employeeNameController.clear();
           _employeeIdController.clear();
           _employeeMobileNumberController.clear();
@@ -568,11 +566,33 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
               : 'N/A';
         }
 
-        // For officeTimeIn
         String timeInStr = formatTimestamp(attendance.officeTimeIn);
         String timeOutStr = formatTimestamp(attendance.officeTimeOut);
         String lunchInStr = formatTimestamp(attendance.lunchTimeStart);
         String lunchOutStr = formatTimestamp(attendance.lunchTimeEnd);
+
+        // Determine status and color
+        String status = attendance.status?.toLowerCase() ?? 'absent';
+        Color statusColor;
+        String statusText;
+
+        switch (status) {
+          case 'present':
+            statusColor = Colors.green;
+            statusText = 'PRESENT';
+            break;
+          case 'half-day':
+            statusColor = Colors.orange;
+            statusText = 'HALF-DAY';
+            break;
+          case 'absent':
+            statusColor = Colors.red;
+            statusText = 'ABSENT';
+            break;
+          default:
+            statusColor = Colors.grey;
+            statusText = status.toUpperCase();
+        }
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -585,13 +605,38 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Date: $dateStr',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: Colors.deepOrange,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Date: $dateStr',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Colors.deepOrange,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: statusColor,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -611,7 +656,6 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    // Time In
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -631,7 +675,6 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
                         ],
                       ),
                     ),
-                    // Lunch Start
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,7 +694,6 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
                         ],
                       ),
                     ),
-                    // Lunch End
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -671,7 +713,6 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
                         ],
                       ),
                     ),
-                    // Time Out
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,7 +745,7 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF9E5), // Light yellow background
+      backgroundColor: const Color(0xFFFFF9E5),
       appBar: AppBar(
         backgroundColor: Colors.orange.shade700,
         title: const Text('Attendance History'),
