@@ -20,8 +20,8 @@ class AuthProvider extends ChangeNotifier {
   late SharedPreferences _prefs;
 
   AuthProvider({Auth? auth}) : _auth = auth ?? Auth() {
-    _initAuthState();
     _setupTokenRefresh();
+    _initAuthState();
   }
 
   // Getters
@@ -44,10 +44,24 @@ class AuthProvider extends ChangeNotifier {
     await _loadSession();
 
     if (_isLoggedIn && _currentUser != null) {
-      final isValid = await validateSession();
-      if (isValid) {
-        await _loadUserData(_currentUser!.uid);
-      } else {
+      try {
+        // Force-refresh the Firebase Auth token to check if the user still exists
+        await _currentUser!.reload();
+        await _currentUser!.getIdToken(true); // Force token refresh
+
+        // Check if the user still exists in Firestore
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentUser!.uid)
+            .get();
+
+        if (!userDoc.exists) {
+          await logout(); // User was deleted, force logout
+        } else {
+          await _loadUserData(_currentUser!.uid); // Load fresh data
+        }
+      } catch (e) {
+        // FirebaseAuthException or network error (user likely deleted)
         await logout();
       }
     }
@@ -59,21 +73,13 @@ class AuthProvider extends ChangeNotifier {
   void _setupTokenRefresh() {
     FirebaseAuth.instance.authStateChanges().listen((User? user) async {
       if (user != null) {
-        final idTokenResult = await user.getIdTokenResult();
-        final expiryTime = idTokenResult.expirationTime;
-        if (expiryTime != null) {
-          final refreshTime = expiryTime.subtract(const Duration(minutes: 5));
-          final delay = refreshTime.difference(DateTime.now());
-
-          if (delay.inSeconds > 0) {
-            Future.delayed(delay, () async {
-              if (_currentUser != null) {
-                await _currentUser!.getIdToken(true);
-                _sessionExpiry = DateTime.now().add(const Duration(days: 7));
-                await _saveSession();
-              }
-            });
+        try {
+          final idToken = await user.getIdTokenResult(true);
+          if (DateTime.now().isAfter(idToken.expirationTime!)) {
+            await logout(); // Immediate logout if expired
           }
+        } catch (e) {
+          await logout(); // Fallback on error
         }
       }
     });
@@ -242,29 +248,29 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> loginWithEmail({
     required String email,
     required String password,
-    bool isAdmin = false,
   }) async {
     try {
       _isLoading = true;
       _errorMessage = null;
       notifyListeners();
 
+      // Perform fresh login
       await _auth.signIn(email: email, password: password);
-      _isLoggedIn = true;
-      _isAdmin = isAdmin;
-      _isEmployee = !isAdmin;
 
-      if (_currentUser != null) {
-        await _loadUserData(_currentUser!.uid);
+      // Verify the user is properly authenticated
+      if (_auth.currentUser == null) {
+        _errorMessage = 'Authentication failed - please try again';
+        return false;
       }
 
-      await _saveSession();
+      // Load user data
+      await _loadUserData(_auth.currentUser!.uid);
       return true;
     } on FirebaseAuthException catch (e) {
-      _errorMessage = _getFirebaseErrorMessage(e);
+      _errorMessage = e.message ?? 'Authentication failed';
       return false;
     } catch (e) {
-      _errorMessage = 'Login failed: ${e.toString()}';
+      _errorMessage = 'Unexpected error during login';
       return false;
     } finally {
       _isLoading = false;
@@ -336,17 +342,12 @@ class AuthProvider extends ChangeNotifier {
   // Logout
   Future<void> logout() async {
     try {
-      _isLoading = true;
-      notifyListeners();
-
       await _auth.signOut();
-      await _clearSession();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear(); // Wipe all cached data
       _resetState();
     } catch (e) {
-      _errorMessage = 'Logout failed: ${e.toString()}';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      print("Logout error: $e");
     }
   }
 
@@ -362,15 +363,25 @@ class AuthProvider extends ChangeNotifier {
       case 'user-not-found':
         return 'No user found with this email';
       case 'wrong-password':
-        return 'Incorrect password';
+      case 'invalid-credential':
+        return 'The email or password is incorrect';
       case 'email-already-in-use':
         return 'Email already in use';
       case 'weak-password':
-        return 'Password is too weak';
+        return 'Password is too weak (min 6 characters)';
       case 'invalid-email':
-        return 'Invalid email address';
+        return 'Please enter a valid email address';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later';
+      case 'user-disabled':
+        return 'This account has been disabled';
+      case 'operation-not-allowed':
+        return 'Email/password accounts are not enabled';
+      case 'token-expired':
+      case 'invalid-auth-token':
+        return 'Session expired. Please login again';
       default:
-        return 'Authentication error: ${e.message}';
+        return 'Authentication error: ${e.message ?? 'Unknown error'}';
     }
   }
 

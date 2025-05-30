@@ -1,5 +1,6 @@
 import 'package:attendance_app/authentication/auth_provider.dart';
 import 'package:attendance_app/screen/attendance_history.dart';
+import 'package:attendance_app/screen/delete_account_page.dart';
 import 'package:attendance_app/screen/employee_profiles.dart';
 import 'package:attendance_app/screen/mark_attendance.dart';
 import 'package:flutter/material.dart';
@@ -195,17 +196,7 @@ class _HomePageState extends State<HomePage> {
                         begin: Alignment.topRight,
                         end: Alignment.bottomLeft,
                       ),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            backgroundColor: Color(0xFF37474F),
-                            content: Text(
-                              "Settings page coming soon!",
-                              style: TextStyle(color: textPrimary),
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => _navigateTo(const DeleteAccountPage()),
                     ),
                   ],
                 ),

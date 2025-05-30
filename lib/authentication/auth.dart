@@ -15,10 +15,65 @@ class Auth {
     required String email,
     required String password,
   }) async {
-    await _firebaseAuth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      // Trim inputs
+      email = email.trim();
+      password = password.trim();
+
+      // Validate inputs
+      if (email.isEmpty || password.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'invalid-email-or-password',
+          message: 'Email and password cannot be empty',
+        );
+      }
+
+      // Sign in with email and password
+      final userCredential = await _firebaseAuth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Verify we got a user
+      if (userCredential.user == null) {
+        throw FirebaseAuthException(
+          code: 'no-user',
+          message: 'Authentication succeeded but no user returned',
+        );
+      }
+
+      // Optionally refresh token (but don't fail if this doesn't work)
+      try {
+        await userCredential.user?.getIdToken(true);
+      } catch (e) {
+        // Token refresh failed but we still have a valid session
+        print('Token refresh failed but continuing: $e');
+      }
+    } on FirebaseAuthException catch (e) {
+      // Handle specific Firebase errors
+      String message;
+      switch (e.code) {
+        case 'invalid-email':
+          message = 'The email address is invalid';
+          break;
+        case 'user-disabled':
+          message = 'This account has been disabled';
+          break;
+        case 'user-not-found':
+        case 'wrong-password':
+          message = 'Invalid email or password';
+          break;
+        default:
+          message = 'Authentication failed: ${e.message}';
+      }
+      throw FirebaseAuthException(code: e.code, message: message);
+    } catch (e) {
+      // Handle any other errors
+      throw FirebaseAuthException(
+        code: 'authentication-failed',
+        message: 'An unexpected error occurred during authentication',
+      );
+    }
   }
 
   Future<void> createAdminAccount({
@@ -64,16 +119,17 @@ class Auth {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
-      
-      final GoogleSignInAuthentication googleAuth = 
+
+      final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      
-      final userCredential = await _firebaseAuth.signInWithCredential(credential);
-      
+
+      final userCredential =
+          await _firebaseAuth.signInWithCredential(credential);
+
       // Store user data if new user
       if (userCredential.additionalUserInfo?.isNewUser ?? false) {
         await _firestore.collection('users').doc(userCredential.user?.uid).set({
@@ -85,11 +141,14 @@ class Auth {
         });
       } else {
         // Update last login for existing user
-        await _firestore.collection('users').doc(userCredential.user?.uid).update({
+        await _firestore
+            .collection('users')
+            .doc(userCredential.user?.uid)
+            .update({
           'lastLogin': FieldValue.serverTimestamp(),
         });
       }
-      
+
       return userCredential;
     } catch (e) {
       print('Error signing in with Google: $e');
@@ -192,5 +251,36 @@ class Auth {
     await _firestore.collection('users').doc(user.uid).update({
       'lastLogin': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<bool> validateCurrentCredentials() async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) return false;
+
+      // Force token refresh
+      final tokenResult = await user.getIdTokenResult(true);
+
+      // Check token expiration
+      if (tokenResult.expirationTime != null &&
+          DateTime.now().isAfter(tokenResult.expirationTime!)) {
+        return false;
+      }
+
+      // Verify the token is still valid
+      await user.reload();
+      return _firebaseAuth.currentUser != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> clearAuthState() async {
+    try {
+      await _firebaseAuth.signOut();
+      // Additional cleanup if needed
+    } catch (e) {
+      print('Error during auth state clearance: $e');
+    }
   }
 }
