@@ -15,7 +15,7 @@ abstract class AuthService {
     required String username,
     required String email,
     required String password,
-    required String emailId,
+    required String employeeId,
     required String mobileNumber,
   });
 
