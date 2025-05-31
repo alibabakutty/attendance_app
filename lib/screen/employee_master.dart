@@ -3,6 +3,7 @@ import 'package:attendance_app/modals/employee_master_data.dart';
 import 'package:attendance_app/service/firebase_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -20,14 +21,19 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
   Timestamp? _dateOfJoining;
   final TextEditingController _employeeIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _mobileNumberController =
-      TextEditingController(); // New mobile controller
+  final TextEditingController _mobileNumberController = TextEditingController();
   final TextEditingController _aadhaarController = TextEditingController();
   final TextEditingController _panController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _aadhaarDisplayController =
+      TextEditingController();
+  final TextEditingController _panDisplayController = TextEditingController();
+
   bool _isSubmitting = false;
   bool _obscurePassword = true;
+  bool _obscureAadhaar = true;
+  bool _obscurePan = true;
   bool _isEditing = false;
 
   EmployeeMasterData? _employeeData;
@@ -40,7 +46,50 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
     if (mobileNumberFromArgs != null) {
       _mobileNumberController.text = mobileNumberFromArgs!;
     }
+
+    _aadhaarController.addListener(_updateAadhaarDisplay);
+    _panController.addListener(_updatePanDisplay);
+
     _fetchEmployeeData();
+  }
+
+  void _updateAadhaarDisplay() {
+    final text = _aadhaarController.text;
+    if (_obscureAadhaar) {
+      if (text.isEmpty) {
+        _aadhaarDisplayController.text = '';
+      } else if (text.length <= 4) {
+        _aadhaarDisplayController.text = 'XXXX' + text.substring(text.length);
+      } else if (text.length <= 8) {
+        _aadhaarDisplayController.text = 'XXXX XXXX ' + text.substring(4);
+      } else {
+        _aadhaarDisplayController.text =
+            'XXXX XXXX ' + text.substring(text.length - 4);
+      }
+    } else {
+      // Format as XXXX XXXX XXXX when visible
+      String formatted = '';
+      for (int i = 0; i < text.length; i++) {
+        if (i == 4 || i == 8) formatted += ' ';
+        formatted += text[i];
+      }
+      _aadhaarDisplayController.text = formatted;
+    }
+  }
+
+  void _updatePanDisplay() {
+    final text = _panController.text;
+    if (_obscurePan) {
+      if (text.isEmpty) {
+        _panDisplayController.text = '';
+      } else if (text.length <= 5) {
+        _panDisplayController.text = 'XXXXX' + text.substring(text.length);
+      } else {
+        _panDisplayController.text = 'XXXXX' + text.substring(5);
+      }
+    } else {
+      _panDisplayController.text = text;
+    }
   }
 
   Future<void> _fetchEmployeeData() async {
@@ -57,9 +106,11 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
             _aadhaarController.text = _employeeData!.aadhaarNumber;
             _panController.text = _employeeData!.panNumber;
             _emailController.text = _employeeData!.email;
-            // Password should not be pre-filled for security reasons
             _passwordController.text = _employeeData!.password;
             _isEditing = true;
+
+            _updateAadhaarDisplay();
+            _updatePanDisplay();
           });
         }
       } catch (e) {
@@ -97,17 +148,14 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
         bool success;
 
         if (_isEditing) {
-          // ✅ Call update function
           success =
               await _firebaseService.updateEmployeeMasterDataByMobileNumber(
             _mobileNumberController.text.trim(),
             employeeDataMap,
           );
         } else {
-          // ✅ First create auth account
           final authProvider =
               Provider.of<AuthProvider>(context, listen: false);
-
           await authProvider.createAccount(
             username: _nameController.text.trim(),
             email: _emailController.text.trim(),
@@ -117,7 +165,6 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
             isAdmin: false,
           );
 
-          // ✅ Then add employee data
           final employeeMasterData = EmployeeMasterData(
             employeeId: _employeeIdController.text.trim(),
             employeeName: _nameController.text.trim(),
@@ -165,14 +212,15 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
 
   @override
   void dispose() {
+    _aadhaarDisplayController.dispose();
+    _panDisplayController.dispose();
     _employeeIdController.dispose();
     _nameController.dispose();
-    _mobileNumberController.dispose(); // Dispose mobile controller
+    _mobileNumberController.dispose();
     _aadhaarController.dispose();
     _panController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _dateOfJoining = null;
     super.dispose();
   }
 
@@ -243,7 +291,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                 ),
                 const SizedBox(height: 16),
 
-                // Mobile Number Field (New)
+                // Mobile Number Field
                 TextFormField(
                   controller: _mobileNumberController,
                   keyboardType: TextInputType.phone,
@@ -297,45 +345,91 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
 
                 // Aadhaar Number Field
                 TextFormField(
-                  controller: _aadhaarController,
-                  decoration: const InputDecoration(
+                  controller: _aadhaarDisplayController,
+                  decoration: InputDecoration(
                     labelText: 'Aadhaar Number',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.credit_card),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.credit_card),
                     hintText: 'XXXX XXXX XXXX',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureAadhaar
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () {
+                        setState(() {
+                          _obscureAadhaar = !_obscureAadhaar;
+                          _updateAadhaarDisplay();
+                        });
+                      },
+                    ),
                   ),
                   keyboardType: TextInputType.number,
-                  maxLength: 12,
+                  maxLength: 14, // 12 digits + 2 spaces
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    final actualValue = _aadhaarController.text;
+                    if (actualValue.isEmpty)
                       return 'Please enter Aadhaar number';
-                    }
-                    if (value.length < 12) {
+                    if (actualValue.length < 12)
                       return 'Aadhaar must be 12 digits';
-                    }
                     return null;
+                  },
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(14),
+                  ],
+                  onChanged: (value) {
+                    // Remove spaces and update the actual controller
+                    final cleanedValue = value.replaceAll(' ', '');
+                    if (cleanedValue != _aadhaarController.text) {
+                      _aadhaarController.text = cleanedValue;
+                      _aadhaarController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _aadhaarController.text.length),
+                      );
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
 
                 // PAN Number Field
                 TextFormField(
-                  controller: _panController,
-                  decoration: const InputDecoration(
+                  controller: _panDisplayController,
+                  decoration: InputDecoration(
                     labelText: 'PAN Number',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.credit_card),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.credit_card),
                     hintText: 'ABCDE1234F',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePan
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePan = !_obscurePan;
+                          _updatePanDisplay();
+                        });
+                      },
+                    ),
                   ),
                   maxLength: 10,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter PAN number';
-                    }
-                    if (value.length < 10) {
+                    final actualValue = _panController.text;
+                    if (actualValue.isEmpty) return 'Please enter PAN number';
+                    if (actualValue.length < 10)
                       return 'PAN must be 10 characters';
-                    }
                     return null;
+                  },
+                  inputFormatters: [
+                    UpperCaseTextFormatter(),
+                    FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  onChanged: (value) {
+                    if (value != _panController.text) {
+                      _panController.text = value;
+                      _panController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _panController.text.length),
+                      );
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -410,7 +504,7 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
                         )
                       : Text(
                           _isEditing ? 'Update Employee' : 'Save Employee',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -421,6 +515,17 @@ class _EmployeeMasterState extends State<EmployeeMaster> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
     );
   }
 }
