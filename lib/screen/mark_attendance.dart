@@ -37,6 +37,60 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     _fetchTodayAttendance();
   }
 
+  // Helper methods for time validation
+  bool _isWithinOfficeTimeInRange(DateTime time) {
+    final now = time;
+    final startTime = DateTime(now.year, now.month, now.day, 9, 30);
+    final endTime = DateTime(now.year, now.month, now.day, 10, 15);
+    return now.isAfter(startTime.subtract(const Duration(seconds: 1))) &&
+        now.isBefore(endTime.add(const Duration(seconds: 1)));
+  }
+
+  bool _isWithinLunchTimeRange(DateTime time) {
+    final now = time;
+    final startTime = DateTime(now.year, now.month, now.day, 13, 15); // 1:15 PM
+    final endTime = DateTime(now.year, now.month, now.day, 14, 30); // 2:30 PM
+    return now.isAfter(startTime.subtract(const Duration(seconds: 1))) &&
+        now.isBefore(endTime.add(const Duration(seconds: 1)));
+  }
+
+  bool _isWithinOfficeTimeOutRange(DateTime time) {
+    final now = time;
+    final startTime = DateTime(now.year, now.month, now.day, 18, 30); // 6:30 PM
+    final endTime = DateTime(now.year, now.month, now.day, 19, 15); // 7:15 PM
+    return now.isAfter(startTime.subtract(const Duration(seconds: 1))) &&
+        now.isBefore(endTime.add(const Duration(seconds: 1)));
+  }
+
+  String _getTimeWarning(DateTime time, String actionType) {
+    switch (actionType) {
+      case 'officeIn':
+        if (_isWithinOfficeTimeInRange(time)) return '';
+        final startTime = DateTime(time.year, time.month, time.day, 9, 30);
+        return time.isBefore(startTime)
+            ? '⚠️ Too early (allowed after 9:30 AM)'
+            : '⚠️ Too late (allowed before 10:15 AM)';
+
+      case 'lunchStart':
+      case 'lunchEnd':
+        if (_isWithinLunchTimeRange(time)) return '';
+        final startTime = DateTime(time.year, time.month, time.day, 13, 15);
+        return time.isBefore(startTime)
+            ? '⚠️ Too early (allowed after 1:15 PM)'
+            : '⚠️ Too late (allowed before 2:30 PM)';
+
+      case 'officeOut':
+        if (_isWithinOfficeTimeOutRange(time)) return '';
+        final startTime = DateTime(time.year, time.month, time.day, 18, 30);
+        return time.isBefore(startTime)
+            ? '⚠️ Too early (allowed after 6:30 PM)'
+            : '⚠️ Too late (allowed before 7:15 PM)';
+
+      default:
+        return '';
+    }
+  }
+
   Future<void> _fetchTodayAttendance() async {
     if (_isFetching) return;
 
@@ -169,6 +223,33 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     if (position == null) return;
 
     final now = DateTime.now();
+
+    // Check for time restrictions
+    bool isWithinTimeRange = true;
+    switch (actionType) {
+      case 'officeIn':
+        isWithinTimeRange = _isWithinOfficeTimeInRange(now);
+        break;
+      case 'lunchStart':
+      case 'lunchEnd':
+        isWithinTimeRange = _isWithinLunchTimeRange(now);
+        break;
+      case 'officeOut':
+        isWithinTimeRange = _isWithinOfficeTimeOutRange(now);
+        break;
+    }
+
+    if (!isWithinTimeRange) {
+      final warning = _getTimeWarning(now, actionType);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(warning),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      // Still allow marking but with warning
+    }
 
     setState(() {
       _locationMap[actionType] = position;
@@ -411,6 +492,26 @@ class _MarkAttendanceState extends State<MarkAttendance> {
     required String actionType,
   }) {
     final status = _getStatusForCard(actionType);
+    bool showWarning = false;
+    String warningMessage = '';
+
+    if (time != null) {
+      switch (actionType) {
+        case 'officeIn':
+          showWarning = !_isWithinOfficeTimeInRange(time);
+          break;
+        case 'lunchStart':
+        case 'lunchEnd':
+          showWarning = !_isWithinLunchTimeRange(time);
+          break;
+        case 'officeOut':
+          showWarning = !_isWithinOfficeTimeOutRange(time);
+          break;
+      }
+      if (showWarning) {
+        warningMessage = _getTimeWarning(time, actionType);
+      }
+    }
 
     return Card(
       elevation: 4,
@@ -473,11 +574,31 @@ class _MarkAttendanceState extends State<MarkAttendance> {
                             ? DateFormat('hh:mm a').format(time)
                             : 'Not marked yet',
                         style: TextStyle(
-                          color: time != null ? Colors.green : Colors.grey[600],
+                          color: time != null
+                              ? (showWarning ? Colors.orange : Colors.green)
+                              : Colors.grey[600],
                           fontSize: 14,
                         ),
                       ),
-                      if (location != null)
+                      if (showWarning)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning_amber,
+                                  color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                warningMessage,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (location != null && !showWarning)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
