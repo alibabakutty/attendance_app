@@ -551,194 +551,175 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
       return const SizedBox.shrink();
     }
 
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      shrinkWrap: true,
-      itemCount: _attendanceList.length,
-      itemBuilder: (context, index) {
-        final attendance = _attendanceList[index];
-        final dateStr =
-            DateFormat('dd-MM-yyyy').format(attendance.attendanceDate.toDate());
+    // Set a fixed height for the horizontal scroll view
+    double cardHeight = MediaQuery.of(context).size.height * 0.6;
 
-        String formatTimestamp(Timestamp? timestamp) {
-          return timestamp != null
-              ? DateFormat('hh:mm a').format(timestamp.toDate())
-              : 'N/A';
-        }
+    return SizedBox(
+      height: cardHeight,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: _attendanceList.length,
+        itemBuilder: (context, index) {
+          final attendance = _attendanceList[index];
+          final dateStr = DateFormat('dd-MM-yyyy')
+              .format(attendance.attendanceDate.toDate());
 
-        String timeInStr = formatTimestamp(attendance.officeTimeIn);
-        String timeOutStr = formatTimestamp(attendance.officeTimeOut);
-        String lunchInStr = formatTimestamp(attendance.lunchTimeStart);
-        String lunchOutStr = formatTimestamp(attendance.lunchTimeEnd);
+          String formatTimestamp(Timestamp? timestamp) {
+            return timestamp != null
+                ? DateFormat('hh:mm a').format(timestamp.toDate())
+                : 'N/A';
+          }
 
-        // Determine status and color
-        String status = attendance.status?.toLowerCase() ?? 'absent';
-        Color statusColor;
-        String statusText;
+          String timeInStr = formatTimestamp(attendance.officeTimeIn);
+          String timeOutStr = formatTimestamp(attendance.officeTimeOut);
+          String lunchInStr = formatTimestamp(attendance.lunchTimeStart);
+          String lunchOutStr = formatTimestamp(attendance.lunchTimeEnd);
 
-        switch (status) {
-          case 'present':
-            statusColor = Colors.green;
-            statusText = 'PRESENT';
-            break;
-          case 'half-day':
-            statusColor = Colors.orange;
-            statusText = 'HALF-DAY';
-            break;
-          case 'absent':
-            statusColor = Colors.red;
-            statusText = 'ABSENT';
-            break;
-          default:
-            statusColor = Colors.grey;
-            statusText = status.toUpperCase();
-        }
+          // Determine status and color
+          String status = attendance.status?.toLowerCase() ?? 'absent';
+          Color statusColor;
+          String statusText;
 
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          elevation: 3,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          shadowColor: Colors.orange.shade200,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          switch (status) {
+            case 'present':
+              statusColor = Colors.green;
+              statusText = 'PRESENT';
+              break;
+            case 'half-day':
+              statusColor = Colors.orange;
+              statusText = 'HALF-DAY';
+              break;
+            case 'absent':
+              statusColor = Colors.red;
+              statusText = 'ABSENT';
+              break;
+            default:
+              statusColor = Colors.grey;
+              statusText = status.toUpperCase();
+          }
+
+          // Set a fixed width for each card
+          double cardWidth = MediaQuery.of(context).size.width * 0.85;
+
+          return Container(
+            width: cardWidth,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Card(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              shadowColor: Colors.orange.shade200,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          dateStr,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Colors.deepOrange,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: statusColor,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20, thickness: 1),
                     Text(
-                      'Date: $dateStr',
+                      attendance.employeeName,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Colors.deepOrange,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: statusColor,
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: ${attendance.employeeId}',
+                      style: const TextStyle(fontSize: 14),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Employee: ${attendance.employeeName}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Employee ID: ${attendance.employeeId}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Mobile: ${attendance.mobileNumber ?? 'N/A'}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mobile: ${attendance.mobileNumber ?? 'N/A'}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const Divider(height: 20, thickness: 1),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          const Text(
-                            'Time In',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            timeInStr,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Lunch Start',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            lunchInStr,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Lunch End',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.deepOrange,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            lunchOutStr,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Time Out',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.red,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            timeOutStr,
-                            style: const TextStyle(fontSize: 16),
-                          ),
+                          _buildTimeCard('Time In', timeInStr, Colors.green),
+                          _buildTimeCard(
+                              'Lunch Start', lunchInStr, Colors.orange),
+                          _buildTimeCard(
+                              'Lunch End', lunchOutStr, Colors.deepOrange),
+                          _buildTimeCard('Time Out', timeOutStr, Colors.red),
                         ],
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTimeCard(String label, String time, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
           ),
-        );
-      },
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: color,
+            fontSize: 14,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          time,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
